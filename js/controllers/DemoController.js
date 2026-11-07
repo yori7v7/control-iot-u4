@@ -57,7 +57,7 @@ export class DemoController {
       stepsStatus: this.#stepsStatus, stepsError: this.#stepsError,
       activeId: active?.id ?? null, phase: run?.phase ?? 'idle', message: run?.message ?? null,
       progress: run?.progress ?? null, observedSteps: run?.seen.size ?? 0, lastEvent: this.#lastEvent,
-      http: this.#http,
+      http: this.#http, stop: run?.stop ?? null,
       canStart: Boolean(!this.busy && selected?.active && this.#stepsStatus === 'ready' &&
         this.#steps.length && this.#canControl() && this.#canStart()),
       canCancel: Boolean((active || this.#starting) && !this.#canceling && this.#canControl()),
@@ -106,7 +106,6 @@ export class DemoController {
     run.eventAtStart = this.#lastEvent;
     run.phase = 'starting';
     run.message = 'Esperando el evento de inicio por WSS.';
-    this.#terminal = null;
     this.#http = { action: 'start', phase: 'sending', id: run.id };
     this.#starting = Promise.resolve().then(() => this.#start(run));
     this.#onChange();
@@ -165,6 +164,17 @@ export class DemoController {
     return this.#canceling;
   }
 
+  observeStop() {
+    const terminal = this.#terminal;
+    if (terminal?.phase !== 'canceled' || this.#tracked.size) return null;
+
+    // Bind the response to the cancellation visible when the STOP is dispatched.
+    return result => {
+      if (this.#terminal !== terminal || (terminal.stop?.phase === 'accepted' && result.phase !== 'accepted')) return;
+      terminal.stop = result;
+    };
+  }
+
   async #cancelTracked() {
     const errors = [];
     try {
@@ -182,7 +192,7 @@ export class DemoController {
         try {
           await this.#api.cancelDemo(run.id);
           this.#http = { action: 'cancel', phase: 'accepted', id: run.id, status: 200 };
-          this.#finish(run, 'canceled', 'Aún no se observó la cancelación por WSS.');
+          this.#finish(run, 'canceled', 'Aún no se observó la cancelación por WSS.', this.#connected);
         } catch (error) {
           this.#http = { action: 'cancel', phase: 'error', id: run.id, status: error.status, message: error.message };
           if (error.status === 404) {
@@ -206,6 +216,7 @@ export class DemoController {
     if (this.#connected === connected) return;
     this.#connected = connected;
     if (!connected) {
+      if (this.#terminal) this.#terminal.awaitingCancelEvent = false;
       for (const run of this.#tracked.values()) {
         if (!['accepted', 'running'].includes(run.phase)) continue;
         run.phase = 'uncertain';
@@ -222,8 +233,20 @@ export class DemoController {
     this.#lastEvent = event;
     let run = this.#tracked.get(event.id_demo);
     if (Object.hasOwn(TERMINAL_PHASES, type)) {
-      if (run) this.#finish(run, TERMINAL_PHASES[type], EVENT_MESSAGES[type]);
-      else this.#terminal = { phase: TERMINAL_PHASES[type], message: EVENT_MESSAGES[type], seen: new Set() };
+      const phase = TERMINAL_PHASES[type];
+      const message = EVENT_MESSAGES[type];
+      if (run) this.#finish(run, phase, message);
+      else if (phase === 'canceled' && this.#terminal?.phase === phase && this.#terminal.id === event.id_demo) {
+        this.#terminal.message = message;
+        this.#terminal.awaitingCancelEvent = false;
+      } else {
+        this.#terminal = { id: event.id_demo, phase, message, seen: new Set() };
+      }
+    } else if (!run && type === 'demo_movimiento' && this.#terminal?.id === event.id_demo &&
+      this.#terminal.awaitingCancelEvent) {
+      // On the same socket, a buffered step may precede the terminal WSS event.
+      this.#terminal.progress = event;
+      this.#terminal.seen.add(event.id_demo_movimiento);
     } else {
       run ??= this.#newRun(event.id_demo);
       if (type === 'demo_inicio') {
@@ -243,13 +266,15 @@ export class DemoController {
 
   #newRun(id) {
     const run = { id, phase: 'idle', message: null, progress: null, seen: new Set() };
+    this.#terminal = null;
+    if (!this.#tracked.size) this.#http = null;
     this.#tracked.set(id, run);
     return run;
   }
 
-  #finish(run, phase, message) {
+  #finish(run, phase, message, awaitingCancelEvent = false) {
     if (this.#tracked.get(run.id) !== run) return;
     this.#tracked.delete(run.id);
-    this.#terminal = { ...run, phase, message };
+    this.#terminal = { ...run, phase, message, awaitingCancelEvent };
   }
 }

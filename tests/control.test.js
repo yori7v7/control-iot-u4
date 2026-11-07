@@ -199,6 +199,7 @@ test('DETENER espera el inicio pendiente, cancela la DEMO y después envía el c
   const demo = new DemoController({ vehicleId: 1, api });
   const service = new CommandService({ vehicleId: 1, api,
     isDemoBusy: () => demo.busy, beforeStop: () => demo.cancelForStop(),
+    observeStop: () => demo.observeStop(),
   });
   service.setCatalog(CATALOG);
   demo.setCatalog(DEMOS);
@@ -218,6 +219,80 @@ test('DETENER espera el inicio pendiente, cancela la DEMO y después envía el c
   assert.deepEqual(calls, [['start', 1], ['cancel', 1], ['movement', 1]]);
   assert.equal(service.state.phase, 'accepted');
   assert.equal(demo.state.phase, 'canceled');
+  assert.equal(demo.state.stop.phase, 'accepted');
+});
+
+test('la respuesta de un DETENER anterior a la cancelación no quita el aviso', async () => {
+  const response = deferred();
+  const demo = new DemoController({ vehicleId: 1, api: {} });
+  const service = new CommandService({ vehicleId: 1, api: { sendCommand: () => response.promise },
+    observeStop: () => demo.observeStop(),
+  });
+  service.setCatalog(CATALOG);
+  service.stop();
+  assert.equal(service.state.phase, 'sending');
+  demo.handleEvent({ tipo_evento: 'demo_cancelada', id_vehiculo: 1, id_demo: 1 });
+  service.handleEvent(movementEvent(1, 'detener-anterior'));
+  response.resolve(movement(1));
+  await nextTurn();
+  assert.equal(service.state.phase, 'accepted');
+  assert.equal(demo.state.phase, 'canceled');
+  assert.equal(demo.state.stop, null);
+});
+
+test('la cancelación conserva su progreso y evidencia aunque las tramas lleguen después del HTTP', async () => {
+  const api = {
+    cancelDemo: async () => {},
+    sendCommand: async id => movement(id),
+  };
+  const demo = new DemoController({ vehicleId: 1, api });
+  const service = new CommandService({ vehicleId: 1, api, observeStop: () => demo.observeStop() });
+  service.setCatalog(CATALOG);
+  demo.setConnected(true);
+  const event = { id_vehiculo: 1, id_demo: 1 };
+  demo.handleEvent({ ...event, tipo_evento: 'demo_inicio' });
+  demo.handleEvent({ ...event, tipo_evento: 'demo_movimiento', id_demo_movimiento: 8, orden: 1 });
+  await demo.cancel();
+  service.stop();
+  await nextTurn();
+  assert.deepEqual(demo.state.stop, { phase: 'accepted', compatible: false, ambiguous: false });
+  demo.handleEvent({ ...event, tipo_evento: 'demo_movimiento', id_demo_movimiento: 9, orden: 2 });
+  demo.handleEvent({ ...event, tipo_evento: 'demo_cancelada' });
+  assert.equal(demo.state.phase, 'canceled');
+  assert.equal(demo.state.progress.orden, 2);
+  assert.equal(demo.state.observedSteps, 2);
+  assert.equal(demo.state.stop.phase, 'accepted');
+
+  service.request('AVANZAR');
+  await nextTurn();
+  service.handleEvent(movementEvent(1, 'detener-tardio'));
+  assert.equal(demo.state.stop.compatible, true);
+  service.handleEvent(movementEvent(1, 'detener-ambiguo'));
+  assert.equal(demo.state.stop.compatible, false);
+  assert.equal(demo.state.stop.ambiguous, true);
+  demo.handleEvent({ ...event, tipo_evento: 'demo_inicio' });
+  assert.equal(demo.state.stop, null);
+  assert.equal(demo.state.http, null);
+});
+
+test('un nuevo inicio de DEMO descarta la evidencia y aísla un DETENER pendiente', async () => {
+  const response = deferred();
+  const demo = new DemoController({ vehicleId: 1, api: {} });
+  const service = new CommandService({ vehicleId: 1, api: { sendCommand: () => response.promise },
+    observeStop: () => demo.observeStop(),
+  });
+  service.setCatalog(CATALOG);
+  const event = { id_vehiculo: 1, id_demo: 1 };
+  demo.handleEvent({ ...event, tipo_evento: 'demo_cancelada' });
+  service.stop();
+  demo.handleEvent({ ...event, tipo_evento: 'demo_inicio' });
+  assert.equal(demo.state.phase, 'running');
+  assert.equal(demo.state.stop, null);
+  demo.handleEvent({ ...event, tipo_evento: 'demo_cancelada' });
+  response.resolve(movement(1));
+  await nextTurn();
+  assert.equal(demo.state.phase, 'canceled');
+  assert.equal(demo.state.stop, null);
 });
 
 test('una DEMO observada sigue siendo cancelable tras perder WSS y DETENER se intenta ante fallo de cancelación', async () => {
@@ -283,6 +358,7 @@ test('DETENER puede reintentarse si la DEMO se canceló y el POST individual fal
   const demo = new DemoController({ vehicleId: 1, api });
   const service = new CommandService({ vehicleId: 1, api,
     isDemoBusy: () => demo.busy, beforeStop: () => demo.cancelForStop(),
+    observeStop: () => demo.observeStop(),
   });
   service.setCatalog(CATALOG);
   demo.handleEvent({ tipo_evento: 'demo_inicio', id_vehiculo: 1, id_demo: 2 });
@@ -290,10 +366,12 @@ test('DETENER puede reintentarse si la DEMO se canceló y el POST individual fal
   await nextTurn();
   assert.equal(service.mayBeMoving, true);
   assert.equal(demo.busy, false);
+  assert.equal(demo.state.stop.phase, 'error');
   service.stop();
   await nextTurn();
   assert.deepEqual(calls, [['cancel', 2], ['movement', 1], ['movement', 1]]);
   assert.equal(service.mayBeMoving, false);
+  assert.equal(demo.state.stop.phase, 'accepted');
 });
 
 function joystickFixture() {

@@ -41,6 +41,7 @@ async function start() {
     api, vehicleId, canControl,
     isDemoBusy: () => demo.busy,
     beforeStop: () => demo.cancelForStop(),
+    observeStop: () => demo.observeStop(),
     onChange: render,
   });
   const demo = new DemoController({

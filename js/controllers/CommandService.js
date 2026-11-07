@@ -9,6 +9,7 @@ export class CommandService {
   #canControl;
   #isDemoBusy;
   #beforeStop;
+  #observeStop;
   #onChange;
   #catalog = new Map();
   #current = null;
@@ -16,14 +17,16 @@ export class CommandService {
   #pending = null;
   #draining = false;
   #mayBeMoving = false;
+  #lastObservedStop = null;
 
   constructor({ api, vehicleId, canControl = () => true, isDemoBusy = () => false,
-    beforeStop = async () => {}, onChange = () => {} }) {
+    beforeStop = async () => {}, observeStop = () => null, onChange = () => {} }) {
     this.#api = api;
     this.#vehicleId = vehicleId;
     this.#canControl = canControl;
     this.#isDemoBusy = isDemoBusy;
     this.#beforeStop = beforeStop;
+    this.#observeStop = observeStop;
     this.#onChange = onChange;
   }
 
@@ -104,6 +107,7 @@ export class CommandService {
             cancelError = `No se confirmó la cancelación de la DEMO. ${error.message}`;
           }
         }
+        if (stop) ticket.observeResult = this.#observeStop();
 
         const currentCommand = this.getCommand(ticket.command.key);
         if (!this.#canControl() || currentCommand?.id !== ticket.command.id ||
@@ -113,6 +117,7 @@ export class CommandService {
         }
 
         ticket.phase = 'sending';
+        if (stop) this.#lastObservedStop = null;
         if (!stop) this.#mayBeMoving = true;
         if (this.#current === ticket) this.#onChange();
         ticket.response = await this.#api.sendCommand(ticket.command.id);
@@ -137,6 +142,8 @@ export class CommandService {
         ticket.message = [cancelError, error.message].filter(Boolean).join(' ');
       } finally {
         this.#inFlight = null;
+        if (ticket.observeResult && ticket.phase === 'accepted') this.#lastObservedStop = ticket;
+        this.#reportStop(ticket);
         this.#onChange();
       }
     }
@@ -145,6 +152,11 @@ export class CommandService {
 
   handleEvent(event) {
     const ticket = this.#inFlight ?? this.#current;
+    this.#observeMovement(ticket, event);
+    if (this.#lastObservedStop !== ticket) this.#observeMovement(this.#lastObservedStop, event);
+  }
+
+  #observeMovement(ticket, event) {
     if (!ticket || event.tipo_evento !== 'movimiento' || event.id_vehiculo !== this.#vehicleId ||
         event.id_comando !== ticket.command.id || event.codigo !== ticket.command.code ||
         event.comando !== ticket.command.name || event.origen !== 'API' ||
@@ -156,8 +168,17 @@ export class CommandService {
     else ticket.overflow = true;
     if (ticket.response) {
       this.#match(ticket);
-      if (this.#current === ticket) this.#onChange();
+      this.#reportStop(ticket);
+      if (this.#current === ticket || ticket.observeResult) this.#onChange();
     }
+  }
+
+  #reportStop(ticket) {
+    ticket.observeResult?.({
+      phase: ticket.phase,
+      compatible: Boolean(ticket.correlation),
+      ambiguous: ticket.ambiguous,
+    });
   }
 
   #match(ticket) {

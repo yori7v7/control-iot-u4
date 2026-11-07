@@ -166,6 +166,8 @@ export class DashboardView {
       select.dataset.loading = String(loading);
       const initial = this.#document.createElement('option');
       initial.value = '';
+      initial.disabled = true;
+      initial.hidden = true;
       initial.textContent = loading ? 'Consultando catálogo…' : state.catalog.length ? 'Elige una DEMO' : 'Sin DEMO disponibles';
       select.replaceChildren(initial);
       for (const demo of state.catalog) {
@@ -188,7 +190,7 @@ export class DashboardView {
     const progress = state.progress ? `Movimiento ${state.progress.orden} · ${state.progress.comando}.` : null;
     const helper = state.stepsStatus === 'ready' && state.steps.length && !state.canStart ? canStart : null;
     const message = state.message ?? helper ?? 'Sin ejecución observada.';
-    const cancelNote = state.phase === 'canceled' ? 'Usa DETENER para enviar una orden de parada.' : null;
+    const cancelNote = state.phase === 'canceled' ? this.#demoStopNote(state.stop) : null;
     this.#text('demo-state', [activeOther, message, progress, cancelNote]
       .filter(Boolean).join(' '));
 
@@ -215,6 +217,16 @@ export class DashboardView {
         return item;
       }));
     }
+  }
+
+  #demoStopNote(stop) {
+    if (stop?.phase === 'accepted') {
+      const observation = stop.compatible ? ' Evento WSS compatible recibido.'
+        : stop.ambiguous ? ' La correspondencia WSS es indeterminada.' : '';
+      return `DETENER aceptado por HTTP 200.${observation}`;
+    }
+    const warning = stop?.phase === 'error' ? 'DETENER no se confirmó. ' : '';
+    return `${warning}Usa DETENER para enviar una orden de parada.`;
   }
 
   #setDemoHttp(http) {

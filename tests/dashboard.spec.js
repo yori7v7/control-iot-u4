@@ -27,6 +27,7 @@ async function interceptBackend(page, { serve = true } = {}) {
   const sentToSocket = [];
   const fixtures = {
     requests, posts, sockets, sentToSocket, apiAvailable: true, rdsAvailable: true,
+    socketAvailable: true, stopStatus: null,
     beforeMovementResponse: async () => {}, beforeDemoStartResponse: async () => {},
     beforeDemoCancelResponse: async () => {},
   };
@@ -45,7 +46,7 @@ async function interceptBackend(page, { serve = true } = {}) {
   await page.routeWebSocket('**/*', socket => {
     sockets.push(socket);
     socket.onMessage(message => sentToSocket.push(message));
-    if (!serve || socket.url() !== CONFIG.wsUrl) {
+    if (!serve || !fixtures.socketAvailable || socket.url() !== CONFIG.wsUrl) {
       socket.close({ code: 1008, reason: 'Unexpected test connection' });
       return;
     }
@@ -90,12 +91,15 @@ async function interceptBackend(page, { serve = true } = {}) {
       if (path === MOVEMENT) {
         const command = commandCatalog.find(item => item.id_comando === body?.id_comando && item.activo);
         if (!command) return json({ detail: 'Comando de prueba inexistente' }, 404);
+        if (command.nombre === 'DETENER' && fixtures.stopStatus) {
+          return json({ detail: 'Fallo de prueba al detener' }, fixtures.stopStatus);
+        }
         const timestamp = new Date().toISOString();
         const details = {
           id_comando: command.id_comando, comando: command.nombre, codigo: command.codigo,
           conectado: false, origen: 'API',
         };
-        emit('movimiento', { ...details, timestamp });
+        if (fixtures.socketAvailable) emit('movimiento', { ...details, timestamp });
         await fixtures.beforeMovementResponse(command.id_comando);
         return json({ resultado: 'ok', id_vehiculo: 1, fecha_actualizacion: timestamp, ...details });
       }
@@ -347,6 +351,53 @@ test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETEN
     [`${DEMO}/ejecutar`, null], [`${DEMO}/cancelar`, null], [MOVEMENT, { id_comando: 11 }],
   ]);
   expect(fixtures.sentToSocket).toEqual([]);
+});
+
+test('simulación conserva la DEMO cancelada y actualiza el aviso tras DETENER', async ({ page }) => {
+  await interceptBackend(page, { serve: false });
+  await page.goto(SIMULATION);
+  await page.getByLabel('Seleccionar DEMO').selectOption('1');
+  await page.locator('#demo-start').click();
+  const state = page.locator('#demo-state');
+  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await page.locator('#demo-cancel').click();
+  await expect(state).toContainText('Usa DETENER para enviar una orden de parada.');
+  await page.locator('#stop').click();
+  await expect(state).toContainText('Cancelación observada por WSS.');
+  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await expect(state).toContainText('DETENER aceptado por HTTP 200. Evento WSS compatible recibido.');
+  await expect(state).not.toContainText('Usa DETENER');
+  await page.locator('#demo-start').click();
+  await expect(state).not.toContainText('DETENER aceptado');
+});
+
+test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una coincidencia', async ({ page }) => {
+  const fixtures = await interceptBackend(page);
+  await page.goto(APP);
+  await enableControl(page);
+  await page.getByLabel('Seleccionar DEMO').selectOption('21');
+  await page.locator('#demo-start').click();
+  await expect(page.locator('#demo-http')).toContainText('HTTP 202');
+  fixtures.emitDemo('demo_inicio');
+  fixtures.emitDemo('demo_movimiento', { ...step, conectado: false });
+  const state = page.locator('#demo-state');
+  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await page.locator('#demo-cancel').click();
+  await expect(state).toContainText('Usa DETENER');
+  await expect(page.locator('#demo-http')).toContainText('Cancelación REST · HTTP 200');
+
+  fixtures.socketAvailable = false;
+  fixtures.sockets.at(-1).close({ code: 1011 });
+  await expect(page.locator('#ws-indicator')).toContainText('Reconectando');
+  fixtures.stopStatus = 503;
+  await page.locator('#stop').click();
+  await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+  fixtures.stopStatus = null;
+  await page.locator('#stop').click();
+  await expect(state).toContainText('DETENER aceptado por HTTP 200.');
+  await expect(state).toContainText('Cancelación observada por WSS. Movimiento 1 · AVANZAR.');
+  await expect(state).not.toContainText('Evento WSS compatible recibido.');
+  await expect(state).not.toContainText('Usa DETENER');
 });
 
 test('los tres indicadores se actualizan de forma independiente y se recuperan', async ({ page }) => {
