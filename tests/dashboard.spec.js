@@ -1,0 +1,379 @@
+import { expect, test } from '@playwright/test';
+import axe from 'axe-core';
+import { CONFIG } from '../js/config.js';
+
+const APP = '/control-iot-u4/';
+const SIMULATION = `${APP}?modo=simulacion`;
+const KEY = 'playwright-fixture-only';
+const INVALID_KEY = 'playwright-invalid-fixture-only';
+const VEHICLE = '/vehiculos/1';
+const DEMO = `${VEHICLE}/demos/21`;
+const MOVEMENT = `${VEHICLE}/movimientos`;
+const commandCatalog = [
+  [11, 'DETENER', 0, true], [22, 'AVANZAR', 1, true], [44, 'IZQUIERDA', 4, true],
+  [66, 'DERECHA', 8, true], [88, 'LUCES', 16, true], [99, 'VELOCIDAD', 32, false],
+].map(([id_comando, nombre, codigo, activo]) => ({
+  id_comando, id_vehiculo: 1, nombre, codigo, activo, descripcion: null,
+}));
+const step = {
+  id_demo_movimiento: 51, orden: 1, id_comando: 22, comando: 'AVANZAR', codigo: 1,
+  duracion_ms: 600, pausa_ms: 150,
+};
+
+async function interceptBackend(page, { serve = true } = {}) {
+  const requests = [];
+  const posts = [];
+  const sockets = [];
+  const sentToSocket = [];
+  const fixtures = {
+    requests, posts, sockets, sentToSocket, apiAvailable: true, rdsAvailable: true,
+    beforeMovementResponse: async () => {}, beforeDemoStartResponse: async () => {},
+    beforeDemoCancelResponse: async () => {},
+  };
+  let eventNumber = 0;
+  function emit(type, data) {
+    const id_evento = (++eventNumber).toString(16).padStart(32, '0');
+    sockets.at(-1)?.send(JSON.stringify({ id_vehiculo: 1, tipo_evento: type, id_evento, ...data }));
+  }
+  fixtures.emitDemo = (type, data = {}) => emit(type, {
+    id_demo: 21, nombre_demo: 'Circuito de prueba', timestamp: '2026-11-07T10:00:00Z',
+    id_demo_movimiento: null, id_comando: null, orden: null, comando: null, codigo: null,
+    duracion_ms: null, pausa_ms: null, conectado: null, mensaje: null, ...data,
+  });
+
+  // Fulfill intercepted browser traffic without forwarding any request to AWS.
+  await page.routeWebSocket('**/*', socket => {
+    sockets.push(socket);
+    socket.onMessage(message => sentToSocket.push(message));
+    if (!serve || socket.url() !== CONFIG.wsUrl) {
+      socket.close({ code: 1008, reason: 'Unexpected test connection' });
+      return;
+    }
+    socket.send(JSON.stringify({
+      tipo_evento: 'estado_actual', id_vehiculo: 1, comando: null, codigo: null, timestamp: null, estado: null,
+    }));
+  });
+  await page.route(url => url.origin === CONFIG.apiUrl, async route => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    const method = request.method();
+    const headers = request.headers();
+    requests.push({ method, path, headers });
+    if (!serve) return route.abort();
+    const cors = {
+      'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS',
+      'access-control-allow-headers': 'Content-Type, X-API-Key',
+    };
+    const json = (body, status = 200) => route.fulfill({ json: body, status, headers: cors });
+    if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: cors });
+    if (method === 'GET') {
+      if (path === '/') return fixtures.apiAvailable
+        ? json({ status: 'ok', service: 'Playwright fixture', environment: 'production' }) : route.abort();
+      if (path === '/health/database') return fixtures.rdsAvailable
+        ? json({ status: 'ok', database: 'available' })
+        : json({ detail: 'No fue posible completar la comprobación de lectura de la base de datos.' }, 503);
+      if (path === VEHICLE) return json({
+        id_vehiculo: 1, nombre: 'Vehículo de prueba REST', modelo: null, descripcion: null,
+        microcontrolador: null, fecha_registro: null, activo: true,
+      });
+      if (path === `${VEHICLE}/comandos`) return json(commandCatalog);
+      if (path === `${VEHICLE}/demos`) return json([{
+        id_demo: 21, id_vehiculo: 1, nombre: 'Circuito de prueba', descripcion: null, activo: true,
+      }]);
+      if (path === `${DEMO}/movimientos`) return json([step]);
+    }
+    if (method === 'POST') {
+      const body = request.postDataJSON();
+      const key = headers['x-api-key'];
+      posts.push({ path, body, key });
+      if (key !== KEY) return json({ detail: `Texto remoto deliberadamente ignorado: ${key}` }, 403);
+      if (path === MOVEMENT) {
+        const command = commandCatalog.find(item => item.id_comando === body?.id_comando && item.activo);
+        if (!command) return json({ detail: 'Comando de prueba inexistente' }, 404);
+        const timestamp = new Date().toISOString();
+        const details = {
+          id_comando: command.id_comando, comando: command.nombre, codigo: command.codigo,
+          conectado: false, origen: 'API',
+        };
+        emit('movimiento', { ...details, timestamp });
+        await fixtures.beforeMovementResponse(command.id_comando);
+        return json({ resultado: 'ok', id_vehiculo: 1, fecha_actualizacion: timestamp, ...details });
+      }
+      if (path === `${DEMO}/ejecutar`) {
+        await fixtures.beforeDemoStartResponse();
+        return json({ id_vehiculo: 1, id_demo: 21, estado: 'iniciada' }, 202);
+      }
+      if (path === `${DEMO}/cancelar`) {
+        fixtures.emitDemo('demo_cancelada');
+        await fixtures.beforeDemoCancelResponse();
+        return json({ id_vehiculo: 1, id_demo: 21, estado: 'cancelada' });
+      }
+    }
+    return json({ detail: 'Ruta de prueba inexistente' }, 404);
+  });
+  return fixtures;
+}
+
+async function enableControl(page, key = KEY) {
+  await page.locator('#open-session').click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText(/puede activar físicamente/i);
+  await dialog.getByLabel('Clave API').fill(key);
+  await dialog.getByRole('checkbox').check();
+  await dialog.locator('#save-session').click();
+  await expect(dialog).toBeHidden();
+}
+
+async function assertAccessible(page) {
+  await page.evaluate(axe.source);
+  const violations = await page.evaluate(async () => {
+    const result = await window.axe.run({ runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] });
+    return result.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(node => node.target) }));
+  });
+  expect(violations).toEqual([]);
+}
+
+async function assertFitsViewport(page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const stop = page.locator('#stop');
+  await stop.scrollIntoViewIfNeeded();
+  const bounds = await stop.boundingBox();
+  expect(bounds.height).toBeGreaterThanOrEqual(44);
+  expect(bounds.width).toBeGreaterThanOrEqual(44);
+  await expect(stop).toBeInViewport();
+}
+
+async function startPointer(page) {
+  const joystick = page.getByRole('group', { name: 'Joystick del vehículo' });
+  await joystick.scrollIntoViewIfNeeded();
+  const bounds = await joystick.boundingBox();
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height / 2;
+  const travel = bounds.width * 0.28;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - travel);
+  return { x, y, travel };
+}
+
+test('carga recursos en el subdirectorio y opera por teclado en simulación sin tráfico a AWS', async ({ page, request }) => {
+  const fixtures = await interceptBackend(page, { serve: false });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const redirect = await request.get('/?modo=simulacion', { maxRedirects: 0 });
+  expect(redirect.status()).toBe(302);
+  expect(redirect.headers().location).toBe(SIMULATION);
+  await page.goto(SIMULATION);
+  await expect(page.locator('#simulation-banner')).toBeVisible();
+  await expect(page.locator('#vehicle-name')).toContainText('Montacargas de práctica');
+  const href = await page.locator('link[rel="icon"]').getAttribute('href');
+  const faviconUrl = new URL(href, page.url());
+  expect(faviconUrl.pathname).toBe(`${APP}assets/favicon.svg`);
+  const favicon = await request.get(faviconUrl.href);
+  expect(favicon.headers()['content-type']).toContain('image/svg+xml');
+  expect(await favicon.text()).toContain('<svg');
+  expect((await request.get(`${APP}tests/dashboard.spec.js`)).status()).toBe(404);
+
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name: 'Saltar a los controles' })).toBeFocused();
+  const joystick = page.getByRole('group', { name: 'Joystick del vehículo' });
+  await joystick.focus();
+  await page.keyboard.down('ArrowUp');
+  await expect(page.locator('#last-command')).toHaveText(/avanzar/i);
+  await expect(page.locator('#command-state')).toContainText(/HTTP/i);
+  await page.keyboard.up('ArrowUp');
+  await expect(page.locator('#last-command')).toHaveText(/detener/i);
+  await expect(page.locator('#joystick-direction')).toContainText(/neutral/i);
+  await assertFitsViewport(page);
+  await assertAccessible(page);
+  expect(fixtures.requests).toEqual([]);
+  expect(fixtures.sockets).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test.describe('móvil táctil', () => {
+  test.use({ viewport: { width: 360, height: 800 }, isMobile: true, hasTouch: true });
+
+  test('control táctil, pointercancel y adaptación vertical y horizontal', async ({ page, context }) => {
+    await interceptBackend(page, { serve: false });
+    await page.goto(SIMULATION);
+    const joystick = page.getByRole('group', { name: 'Joystick del vehículo' });
+    await expect(joystick).toHaveAttribute('aria-disabled', 'false');
+    await assertFitsViewport(page);
+    await assertAccessible(page);
+    await joystick.scrollIntoViewIfNeeded();
+    const bounds = await joystick.boundingBox();
+    const x = Math.round(bounds.x + bounds.width / 2);
+    const y = Math.round(bounds.y + bounds.height / 2);
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove', touchPoints: [{ x: x + Math.round(bounds.width * 0.28), y }],
+    });
+    await expect(page.locator('#last-command')).toHaveText(/derecha/i);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    await expect(page.locator('#last-command')).toHaveText(/detener/i);
+    await expect(page.locator('#joystick-direction')).toContainText(/neutral/i);
+    await page.setViewportSize({ width: 800, height: 360 });
+    await assertFitsViewport(page);
+  });
+});
+
+test('aplica la clave solo a POST, distingue HTTP y WSS y descarta la credencial al recargar', async ({ page }) => {
+  const fixtures = await interceptBackend(page);
+  await page.goto(APP);
+  await expect(page.locator('#simulation-banner')).toBeHidden();
+  await expect(page.locator('#vehicle-name')).toHaveText(/vehículo de prueba REST/i);
+  const advance = page.getByRole('button', { name: /^avanzar$/i });
+  await expect(advance).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^velocidad$/i })).toHaveCount(0);
+  await page.locator('#open-session').click();
+  const dialog = page.getByRole('dialog');
+  await assertAccessible(page);
+  await dialog.getByLabel('Clave API').fill(INVALID_KEY);
+  await dialog.getByRole('button', { name: 'Habilitar', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('checkbox').check();
+  await dialog.getByRole('button', { name: 'Habilitar', exact: true }).click();
+  await advance.click();
+  await expect(page.locator('#command-state')).toContainText(/rechazó la clave/i);
+  await expect(page.locator('body')).not.toContainText(INVALID_KEY);
+
+  await enableControl(page);
+  const gate = Promise.withResolvers();
+  fixtures.beforeMovementResponse = () => gate.promise;
+  try {
+    await advance.click();
+    await expect(page.locator('#last-event')).toHaveText(/movimiento/i);
+    await expect(page.locator('#event-detail')).toContainText(/avanzar/i);
+    await expect(page.locator('#command-state')).toHaveText(/solicitud enviada.*esperando respuesta HTTP/i);
+  } finally {
+    gate.resolve();
+  }
+  await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
+  await expect(page.locator('#event-correlation')).toContainText(/compatible/i);
+  expect(fixtures.posts).toEqual([
+    { path: MOVEMENT, body: { id_comando: 22 }, key: INVALID_KEY },
+    { path: MOVEMENT, body: { id_comando: 22 }, key: KEY },
+  ]);
+  expect(fixtures.requests.filter(request => request.method === 'GET').every(request =>
+    !Object.hasOwn(request.headers, 'x-api-key'))).toBe(true);
+  expect(fixtures.sentToSocket).toEqual([]);
+  expect(await page.evaluate(() => [localStorage.length, sessionStorage.length, document.cookie])).toEqual([0, 0, '']);
+  await page.reload();
+  await expect(advance).toBeDisabled();
+  await expect(page.locator('#api-key')).toHaveValue('');
+});
+
+test('el joystick deduplica dirección y DETENER reemplaza una orden pendiente', async ({ page }) => {
+  const fixtures = await interceptBackend(page);
+  await page.goto(APP);
+  await enableControl(page);
+  const gate = Promise.withResolvers();
+  fixtures.beforeMovementResponse = id => id === 22 ? gate.promise : Promise.resolve();
+  try {
+    const { x, y, travel } = await startPointer(page);
+    await expect.poll(() => fixtures.posts.length).toBe(1);
+    await page.mouse.move(x, y - travel * 0.9, { steps: 4 });
+    await page.mouse.move(x + travel, y);
+    await expect(page.locator('#joystick-direction')).toContainText(/derecha/i);
+    await page.mouse.up();
+    await expect(page.locator('#last-command')).toHaveText(/detener/i);
+  } finally {
+    gate.resolve();
+  }
+  await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
+  expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([22, 11]);
+  await expect(page.locator('#joystick-direction')).toContainText(/neutral/i);
+
+  const { x, y, travel } = await startPointer(page);
+  await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
+  await page.mouse.move(x + travel, y);
+  await expect(page.locator('#last-command')).toHaveText(/derecha/i);
+  await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
+  await page.mouse.up();
+  await expect(page.locator('#last-command')).toHaveText(/detener/i);
+  await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
+  expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([22, 11, 22, 66, 11]);
+});
+
+test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETENER', async ({ page }) => {
+  const fixtures = await interceptBackend(page);
+  await page.goto(APP);
+  await enableControl(page);
+  await page.getByLabel('Seleccionar DEMO').selectOption('21');
+  await page.getByText(/movimientos programados/i, { exact: false }).first().click();
+  await expect(page.locator('#demo-steps-list')).toContainText(/avanzar/i);
+  expect(fixtures.requests.some(request => request.method === 'GET' && request.path === `${DEMO}/movimientos`)).toBe(true);
+  const execute = page.getByRole('button', { name: 'Ejecutar', exact: true });
+  const demoState = page.locator('#demo-state');
+  const demoHttp = page.locator('#demo-http');
+  const startGate = Promise.withResolvers();
+  fixtures.beforeDemoStartResponse = () => startGate.promise;
+  try {
+    await execute.click();
+    await expect(demoHttp).toContainText(/inicio REST.*solicitud enviada/i);
+    await expect(page.getByRole('button', { name: /^avanzar$/i })).toBeDisabled();
+    fixtures.emitDemo('demo_inicio');
+    await expect(demoState).toContainText(/inicio observado por WSS/i);
+    await expect(demoHttp).toContainText(/solicitud enviada/i);
+  } finally {
+    startGate.resolve();
+  }
+  await expect(demoHttp).toContainText(/HTTP 202 aceptado/i);
+  fixtures.emitDemo('demo_movimiento', { ...step, conectado: false });
+  await expect(page.locator('#demo-progress')).toHaveAttribute('value', '1');
+  fixtures.emitDemo('demo_fin');
+  await expect(demoState).toContainText(/finalización.*WSS/i);
+  await execute.click();
+  await expect(demoHttp).toContainText(/HTTP 202/i);
+  const cancelGate = Promise.withResolvers();
+  fixtures.beforeDemoCancelResponse = () => cancelGate.promise;
+  try {
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(demoState).toContainText(/cancelación observada por WSS/i);
+    await expect(demoHttp).toContainText(/cancelación REST.*solicitud enviada/i);
+  } finally {
+    cancelGate.resolve();
+  }
+  await expect(demoHttp).toContainText(/cancelación REST.*HTTP 200 aceptado/i);
+  await execute.click();
+  await expect(demoHttp).toContainText(/HTTP 202/i);
+  await page.getByRole('button', { name: /detener/i }).click();
+  await expect(demoState).toContainText(/cancelación/i);
+  await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
+  expect(fixtures.posts.map(({ path, body }) => [path, body])).toEqual([
+    [`${DEMO}/ejecutar`, null], [`${DEMO}/ejecutar`, null], [`${DEMO}/cancelar`, null],
+    [`${DEMO}/ejecutar`, null], [`${DEMO}/cancelar`, null], [MOVEMENT, { id_comando: 11 }],
+  ]);
+  expect(fixtures.sentToSocket).toEqual([]);
+});
+
+test('los tres indicadores se actualizan de forma independiente y se recuperan', async ({ page }) => {
+  const fixtures = await interceptBackend(page);
+  fixtures.rdsAvailable = false;
+  await page.goto(APP);
+  const wss = page.locator('#ws-indicator strong');
+  const api = page.locator('#api-indicator strong');
+  const rds = page.locator('#rds-indicator strong');
+  await expect(page.locator('.connection-list > li')).toHaveCount(3);
+  await expect(wss).toHaveText('En línea');
+  await expect(api).toHaveText('Disponible');
+  await expect(rds).toHaveText('No disponible');
+  fixtures.sockets.at(-1).close({ code: 1011, reason: 'Cierre de prueba' });
+  await expect(wss).toHaveText('Reconectando');
+  await expect(api).toHaveText('Disponible');
+  await expect(wss).toHaveText('En línea');
+  expect(fixtures.sockets).toHaveLength(2);
+
+  const refresh = page.getByRole('button', { name: 'Actualizar conexión y catálogos' });
+  fixtures.apiAvailable = false;
+  fixtures.rdsAvailable = true;
+  await refresh.click();
+  await expect(api).toHaveText('No disponible');
+  await expect(rds).toHaveText('Disponible');
+  await expect(wss).toHaveText('En línea');
+  fixtures.apiAvailable = true;
+  await refresh.click();
+  await expect(api).toHaveText('Disponible');
+});

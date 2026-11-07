@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b101c">
+  <meta name="description" content="Panel de control del vehículo IoT de la práctica 4.1.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://100-30-4-62.nip.io wss://100-30-4-62.nip.io; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Control IoT · Panel de operación</title>
+  <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./css/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="./css/app.css">
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <a class="visually-hidden-focusable skip-link" href="#contenido">Saltar a los controles</a>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="./" aria-label="Control IoT, inicio">
+        <img src="./assets/favicon.svg" width="38" height="38" alt="">
+        <span>Control <strong>IoT</strong><small>PRÁCTICA 4.1 · UNIDAD 04</small></span>
+      </a>
+      <button class="btn btn-outline-panel session-button" id="open-session" type="button">
+        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#key"/></svg>
+        <span id="session-label">Habilitar control</span>
+      </button>
+      <a class="btn btn-outline-panel" id="exit-simulation" href="./" hidden>Salir de simulación</a>
+    </div>
+  </header>
+
+  <main class="shell main-shell" id="contenido">
+    <noscript><p class="notice">Activa JavaScript para utilizar el panel de control.</p></noscript>
+    <p class="notice simulation-notice" id="simulation-banner" hidden>
+      <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#flask"/></svg>
+      <span><strong>Simulación local.</strong> Los datos, solicitudes y eventos de esta sesión son de prueba.</span>
+    </p>
+    <section class="hero" aria-labelledby="title">
+      <div>
+        <p class="eyebrow"><span></span> PANEL DE OPERACIÓN</p>
+        <h1 id="title">Control del vehículo</h1>
+        <p class="hero-copy" id="vehicle-name">Consultando el vehículo y su catálogo…</p>
+      </div>
+      <div class="vehicle-tag">
+        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#vehicle"/></svg>
+        <div><span>VEHÍCULO</span><strong id="vehicle-id">ID 01</strong></div>
+      </div>
+    </section>
+
+    <section class="connectivity" aria-labelledby="connections-title">
+      <div class="connectivity-heading">
+        <h2 id="connections-title">
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg>
+          Conectividad
+        </h2>
+        <button class="btn btn-icon" id="refresh" type="button" aria-label="Actualizar conexión y catálogos" title="Actualizar conexión y catálogos">
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#refresh"/></svg>
+        </button>
+      </div>
+      <ul class="connection-list list-unstyled mb-0">
+        <li id="ws-indicator" data-tone="idle">
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#radio"/></svg>
+          <div><span>WebSocket WSS</span><strong aria-live="polite">Desconectado</strong></div>
+        </li>
+        <li id="api-indicator" data-tone="idle">
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#server"/></svg>
+          <div><span>Servidor AWS / API</span><strong aria-live="polite">Comprobando</strong></div>
+        </li>
+        <li id="rds-indicator" data-tone="idle">
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#database"/></svg>
+          <div><span>Amazon RDS</span><strong aria-live="polite">Sin verificar</strong></div>
+        </li>
+      </ul>
+    </section>
+
+    <p class="notice" id="notice" role="status" hidden></p>
+
+    <div class="dashboard">
+      <section class="panel drive-panel" aria-labelledby="drive-title">
+        <div class="panel-heading">
+          <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg></div>
+          <div><h2 id="drive-title">Control manual</h2><p>Joystick y comandos del vehículo</p></div>
+          <span class="mode-label" id="control-mode">BLOQUEADO</span>
+        </div>
+        <div class="drive-body">
+          <button class="btn btn-stop" id="stop" type="button" disabled>
+            <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#stop"/></svg>
+            <span>DETENER</span><span class="stop-priority">PRIORIDAD</span>
+          </button>
+          <div class="joystick-stage">
+            <div class="axis axis-x" aria-hidden="true"></div>
+            <div class="axis axis-y" aria-hidden="true"></div>
+            <div class="joystick" id="joystick" tabindex="0" role="group" aria-label="Joystick del vehículo"
+              aria-describedby="joystick-help" aria-disabled="true" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Escape">
+              <div class="joystick-ring" aria-hidden="true"></div>
+              <div class="joystick-neutral" aria-hidden="true"></div>
+              <svg class="icon direction north" aria-hidden="true"><use href="./assets/icons.svg#up"/></svg>
+              <svg class="icon direction west" aria-hidden="true"><use href="./assets/icons.svg#left"/></svg>
+              <svg class="icon direction east" aria-hidden="true"><use href="./assets/icons.svg#right"/></svg>
+              <svg class="icon direction south" aria-hidden="true"><use href="./assets/icons.svg#down"/></svg>
+              <div class="joystick-knob" id="joystick-knob" aria-hidden="true"></div>
+            </div>
+          </div>
+          <p class="joystick-direction" id="joystick-direction">POSICIÓN NEUTRAL</p>
+          <p class="control-help" id="joystick-help">Arrastra o usa las flechas del teclado. Suelta el joystick para detener. Para interrumpir un comando de botón, pulsa DETENER.</p>
+          <div class="direction-buttons" id="direction-buttons" aria-label="Botones de dirección" role="group"></div>
+          <div class="extra-control">
+            <h3>Comandos adicionales</h3>
+            <div class="extra-buttons" id="extra-buttons" aria-label="Comandos adicionales" role="group"></div>
+            <p class="muted mb-0" id="no-extras">Esperando catálogo.</p>
+          </div>
+        </div>
+      </section>
+
+      <div class="right-column">
+        <section class="panel" aria-labelledby="demo-title">
+          <div class="panel-heading">
+            <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#sequence"/></svg></div>
+            <div><h2 id="demo-title">Demostraciones</h2><p>Secuencias programadas en el servidor</p></div>
+          </div>
+          <div class="panel-body">
+            <label class="form-label" for="demo-select">Seleccionar DEMO</label>
+            <select class="form-select" id="demo-select" disabled>
+              <option value="">Esperando catálogo…</option>
+            </select>
+            <p id="demo-description" class="muted demo-description" hidden></p>
+            <div class="demo-actions">
+              <button class="btn btn-primary-panel" id="demo-start" type="button" disabled>
+                <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#play"/></svg> Ejecutar
+              </button>
+              <button class="btn btn-outline-panel" id="demo-cancel" type="button" disabled>
+                <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#stop"/></svg> Cancelar
+              </button>
+            </div>
+            <p class="demo-rest" id="demo-http" role="status" hidden></p>
+            <p class="demo-state" id="demo-state" role="status">Sin ejecución observada.</p>
+            <progress id="demo-progress" max="1" value="0" aria-label="Movimientos de DEMO observados por WebSocket" hidden></progress>
+            <details class="demo-steps" id="demo-steps" hidden>
+              <summary id="demo-steps-title">Movimientos programados</summary>
+              <p id="demo-steps-status" class="muted mb-2" role="status"></p>
+              <ol id="demo-steps-list" class="mb-0"></ol>
+            </details>
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="event-title">
+          <div class="panel-heading">
+            <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg></div>
+            <div><h2 id="event-title">Actividad de control</h2><p>Última solicitud y último evento observado</p></div>
+          </div>
+          <div class="panel-body activity-body">
+            <div class="activity-item">
+              <span class="activity-kind">SOLICITUD REST</span>
+              <strong id="last-command">Sin comandos solicitados</strong>
+              <span class="muted" id="command-state" role="status">Esperando una acción manual.</span>
+            </div>
+            <div class="activity-item event-item">
+              <span class="activity-kind">EVENTO WSS</span>
+              <strong id="last-event">Sin eventos recibidos</strong>
+              <span class="muted" id="event-detail"></span>
+            </div>
+            <p class="muted event-correlation" id="event-correlation" hidden></p>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <p class="footnote">
+      <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#info"/></svg>
+      <span>HTTP y WSS muestran actividad del backend. La presencia del ESP8266 y el movimiento físico no se verifican desde este panel.</span>
+    </p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-inner">
+      <div><strong>Desarrollado por Diego Yorel Castelán Silva</strong><span>Ingeniería en Sistemas Computacionales</span></div>
+      <div><strong>Instituto Tecnológico de Pachuca</strong><span>Implementación de Soluciones I · 2026</span></div>
+      <a class="btn btn-outline-panel" id="simulation-link" href="?modo=simulacion" hidden>Probar en simulación</a>
+    </div>
+  </footer>
+
+  <dialog class="session-dialog" id="session-dialog" aria-labelledby="session-title" aria-describedby="session-risk">
+    <form id="session-form" autocomplete="off">
+      <div class="panel-heading">
+        <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#key"/></svg></div>
+        <div><h2 id="session-title">Habilitar control real</h2><p>La clave se conserva en memoria hasta cerrar o recargar la página.</p></div>
+      </div>
+      <div class="panel-body">
+        <p class="notice warning-notice" id="session-risk">Una solicitud puede activar físicamente el vehículo si el microcontrolador está conectado. Para las pruebas de la práctica debe permanecer desconectado.</p>
+        <p class="muted">La clave administrativa en el navegador permite controlar este vehículo. Su uso se limita a una sesión personal de prueba y carece de las garantías de una autenticación multiusuario.</p>
+        <label class="form-label" for="api-key">Clave API</label>
+        <input class="form-control" id="api-key" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="512" autofocus>
+        <div class="form-check mt-3">
+          <input class="form-check-input" id="risk-ack" type="checkbox" required>
+          <label class="form-check-label" for="risk-ack">Entiendo que los comandos pueden activar el vehículo.</label>
+        </div>
+        <p id="session-error" class="session-error" role="alert" hidden></p>
+        <div class="demo-actions">
+          <button class="btn btn-primary-panel" id="save-session" type="submit">Habilitar</button>
+          <button class="btn btn-outline-panel" id="close-session" type="button">Volver</button>
+        </div>
+        <button class="btn btn-outline-panel mt-3" id="clear-session" type="button" hidden>Cerrar sesión de control</button>
+        <p class="muted mt-2 mb-0" id="clear-session-help" hidden>Detén el vehículo y espera a que concluyan las solicitudes antes de cerrar la sesión.</p>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>
