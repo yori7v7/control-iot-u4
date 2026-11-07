@@ -1,5 +1,7 @@
 # Auditoría real de solo lectura · Práctica 4.1
 
+Este informe conserva el alcance y los pendientes de la auditoría de lectura. La validación funcional posterior desde la URL publicada se registra en los [resultados finales](./validacion-funcional.md#resultados-finales).
+
 Validación del 7 de noviembre de 2026, alrededor de las 14:06 en Ciudad de México. Objetivo `https://100-30-4-62.nip.io`, vehículo `1`. Se revisaron primero los [contratos de referencia](./contratos.md) y las [pruebas locales](./pruebas.md).
 
 Se realizaron GET públicos, una consulta OPTIONS y una suscripción WSS sin tramas de aplicación salientes. La auditoría se realizó sin credenciales y con el microcontrolador fuera de la prueba. Se mantuvieron la infraestructura y el código de la aplicación tal como estaban.

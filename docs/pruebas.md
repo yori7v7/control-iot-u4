@@ -1,5 +1,7 @@
 # Validación de la práctica 4.1
 
+Este informe conserva los resultados y pendientes de la etapa local. Consulta el [cierre de validación](./validacion-funcional.md#resultados-finales) para las pruebas desde GitHub Pages y los conteos automatizados más recientes.
+
 Pruebas locales realizadas el 7 de noviembre de 2026 con Node.js 24 y Google Chrome en Windows. Se usaron dos modalidades. La simulación de la interfaz genera datos en memoria. La suite de navegador también abre la vista normal e intercepta REST y WSS con Playwright para comprobar qué enviaría el cliente y qué mostraría al recibir respuestas y eventos.
 
 ## Resultados locales

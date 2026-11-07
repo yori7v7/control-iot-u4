@@ -1,5 +1,7 @@
 # Rediseño visual de Control IoT
 
+Este informe corresponde a la revisión local del rediseño antes de publicar. El [cierre de validación](./validacion-funcional.md#resultados-finales) reúne las comprobaciones posteriores en GitHub Pages.
+
 Versión local del 7 de noviembre de 2026. El punto de restauración anterior al rediseño es la rama `respaldo/pre-redisenio-dark-red`, commit `089c8ea`.
 
 ## Diseño de la consola

@@ -4,6 +4,8 @@ Panel web para operar el vehículo IoT ID 1 de la práctica **Aplicación de con
 
 [Abrir Control IoT en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio del frontend](https://github.com/yori7v7/control-iot-u4)
 
+Versión funcional del frontend [`5f341e6`](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611).
+
 **Autor** · Diego Yorel Castelán Silva, Ingeniería en Sistemas Computacionales  
 **Institución** · Tecnológico Nacional de México — Instituto Tecnológico de Pachuca  
 **Asignatura** · Implementación de Soluciones I · Pinedo Fernández Víctor Manuel · 2026
@@ -26,6 +28,8 @@ La [vista local por defecto](http://127.0.0.1:4173/control-iot-u4/) apunta a la 
 2. Usa el joystick con el dedo, el ratón o las flechas cuando tiene foco. Al volver al centro o soltar se solicita DETENER. Las flechas visibles debajo del joystick envían órdenes individuales y **DETENER** las interrumpe. Las diagonales y otros comandos se habilitan según el catálogo activo.
 3. Selecciona una DEMO y consulta **Movimientos programados**. **Ejecutar** envía la petición al backend y el panel actualiza el avance con los eventos WSS recibidos. **Cancelar** interrumpe la secuencia con su endpoint dedicado. **DETENER** intenta cancelar una DEMO activa conocida antes de enviar la orden de parada.
 4. Revisa por separado el resultado REST, el evento WSS y los indicadores de conectividad. Usa **Actualizar conexión y catálogos** para repetir las consultas. Desde **Sesión de control** puedes actualizar la clave o cerrar la sesión cuando no hay órdenes pendientes ni un movimiento manual sin detener.
+
+Al finalizar normalmente o tras aceptar por HTTP un DETENER posterior a la cancelación, el panel conserva el resultado visible unos cuatro segundos. Luego vuelve a «Sin DEMO en ejecución», mantiene la selección y guarda la evidencia disponible en **Último resultado**. Si DETENER falla o agota el plazo, permanece el aviso.
 
 ## Arquitectura POO
 
@@ -68,9 +72,11 @@ npm run test:browser
 
 La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./docs/pruebas.md) describe las comprobaciones locales con simulación y tráfico interceptado. La [auditoría real de solo lectura](./docs/validacion-real.md) documenta las respuestas observadas en AWS, los pasos de la DEMO y la evidencia de CORS y WSS en Chrome. Ninguna suite del frontend requiere una clave administrativa.
 
-La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. Las pruebas manuales de Swagger y WSS que reportó el propietario corresponden al backend. La revisión de GitHub Pages comprueba el frontend desde el origen publicado sin operaciones de control.
+La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. En la versión funcional más reciente pasaron **24 pruebas de Node y 13 de Chrome**, con simulación y tráfico interceptado.
 
-El [protocolo de validación funcional](./docs/validacion-funcional.md) fija la secuencia protegida, los criterios de correlación y el uso del observador WSS independiente. Para ensayar únicamente el observador sin red, ejecuta `node tests/observe-wss.js --simulacion`.
+El propietario confirmó desde GitHub Pages la conexión con AWS real, los tres indicadores, los comandos y botones con HTTP 200, las cuatro direcciones del joystick, DETENER por REST y WSS, la finalización y cancelación de la DEMO, y DETENER posterior por HTTP 200 y WSS. Las pruebas anteriores de Swagger y WSS corresponden al backend. [Resultados finales y protocolo de validación](./docs/validacion-funcional.md)
+
+Para ensayar el observador sin red, ejecuta `node tests/observe-wss.js --simulacion`.
 
 El [registro del rediseño visual](./docs/redisenio-visual.md) documenta la identidad, el respaldo de Git y la verificación local en diferentes tamaños de pantalla.
 
