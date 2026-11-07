@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b101c">
+  <meta name="theme-color" content="#09090b">
   <meta name="description" content="Panel de control del vehículo IoT de la práctica 4.1.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://100-30-4-62.nip.io wss://100-30-4-62.nip.io; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
@@ -19,25 +19,30 @@
     <div class="shell topbar-inner">
       <a class="brand" href="./" aria-label="Control IoT, inicio">
         <img src="./assets/favicon.svg" width="38" height="38" alt="">
-        <span>Control <strong>IoT</strong><small>PRÁCTICA 4.1 · UNIDAD 04</small></span>
+        <span>Control <strong>IoT</strong><small>CONSOLA VEHICULAR</small></span>
       </a>
-      <button class="btn btn-outline-panel session-button" id="open-session" type="button">
-        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#key"/></svg>
-        <span id="session-label">Habilitar control</span>
-      </button>
-      <a class="btn btn-outline-panel" id="exit-simulation" href="./" hidden>Salir de simulación</a>
+      <div class="topbar-actions">
+        <button class="btn btn-outline-panel session-button" id="open-session" type="button">
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#key"/></svg>
+          <span class="session-text" id="session-label">Habilitar control</span>
+        </button>
+        <a class="btn btn-outline-panel session-button" id="exit-simulation" href="./" hidden>
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#exit"/></svg>
+          <span class="session-text">Salir de simulación</span>
+        </a>
+        <button class="btn btn-stop" id="stop" type="button" disabled>
+          <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#stop"/></svg>
+          <span>DETENER</span>
+        </button>
+      </div>
     </div>
   </header>
 
   <main class="shell main-shell" id="contenido">
     <noscript><p class="notice">Activa JavaScript para utilizar el panel de control.</p></noscript>
-    <p class="notice simulation-notice" id="simulation-banner" hidden>
-      <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#flask"/></svg>
-      <span><strong>Simulación local.</strong> Los datos, solicitudes y eventos de esta sesión son de prueba.</span>
-    </p>
     <section class="hero" aria-labelledby="title">
       <div>
-        <p class="eyebrow"><span></span> PANEL DE OPERACIÓN</p>
+        <p class="eyebrow">PRÁCTICA 4.1 <span aria-hidden="true">/</span> UNIDAD 04</p>
         <h1 id="title">Control del vehículo</h1>
         <p class="hero-copy" id="vehicle-name">Consultando el vehículo y su catálogo…</p>
       </div>
@@ -45,6 +50,10 @@
         <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#vehicle"/></svg>
         <div><span>VEHÍCULO</span><strong id="vehicle-id">ID 01</strong></div>
       </div>
+      <p class="notice simulation-notice" id="simulation-banner" hidden>
+        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#flask"/></svg>
+        <span><strong>Simulación local.</strong> Los datos, solicitudes y eventos son de prueba.</span>
+      </p>
     </section>
 
     <section class="connectivity" aria-labelledby="connections-title">
@@ -79,18 +88,16 @@
       <section class="panel drive-panel" aria-labelledby="drive-title">
         <div class="panel-heading">
           <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg></div>
-          <div><h2 id="drive-title">Control manual</h2><p>Joystick y comandos del vehículo</p></div>
+          <div><h2 id="drive-title">Control manual</h2></div>
           <span class="mode-label" id="control-mode">BLOQUEADO</span>
         </div>
         <div class="drive-body">
-          <button class="btn btn-stop" id="stop" type="button" disabled>
-            <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#stop"/></svg>
-            <span>DETENER</span><span class="stop-priority">PRIORIDAD</span>
-          </button>
           <div class="joystick-stage">
             <div class="axis axis-x" aria-hidden="true"></div>
             <div class="axis axis-y" aria-hidden="true"></div>
-            <div class="joystick" id="joystick" tabindex="0" role="group" aria-label="Joystick del vehículo"
+            <span class="axis-label axis-label-x" aria-hidden="true">X</span>
+            <span class="axis-label axis-label-y" aria-hidden="true">Y</span>
+            <div class="joystick" id="joystick" data-direction="" tabindex="0" role="group" aria-label="Joystick del vehículo"
               aria-describedby="joystick-help" aria-disabled="true" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Escape">
               <div class="joystick-ring" aria-hidden="true"></div>
               <div class="joystick-neutral" aria-hidden="true"></div>
@@ -101,8 +108,10 @@
               <div class="joystick-knob" id="joystick-knob" aria-hidden="true"></div>
             </div>
           </div>
-          <p class="joystick-direction" id="joystick-direction">POSICIÓN NEUTRAL</p>
-          <p class="control-help" id="joystick-help">Arrastra o usa las flechas del teclado. Suelta el joystick para detener. Para interrumpir un comando de botón, pulsa DETENER.</p>
+          <div class="drive-readout">
+            <p class="joystick-direction" id="joystick-direction">POSICIÓN NEUTRAL</p>
+            <p class="control-help" id="joystick-help">Arrastra o usa las flechas. Suelta el joystick para detener. Para interrumpir una orden de botón, pulsa DETENER.</p>
+          </div>
           <div class="direction-buttons" id="direction-buttons" aria-label="Botones de dirección" role="group"></div>
           <div class="extra-control">
             <h3>Comandos adicionales</h3>
@@ -116,7 +125,7 @@
         <section class="panel" aria-labelledby="demo-title">
           <div class="panel-heading">
             <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#sequence"/></svg></div>
-            <div><h2 id="demo-title">Demostraciones</h2><p>Secuencias programadas en el servidor</p></div>
+            <div><h2 id="demo-title">Demostraciones</h2></div>
           </div>
           <div class="panel-body">
             <label class="form-label" for="demo-select">Seleccionar DEMO</label>
@@ -146,7 +155,7 @@
         <section class="panel" aria-labelledby="event-title">
           <div class="panel-heading">
             <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg></div>
-            <div><h2 id="event-title">Actividad de control</h2><p>Última solicitud y último evento observado</p></div>
+            <div><h2 id="event-title">Actividad de control</h2></div>
           </div>
           <div class="panel-body activity-body">
             <div class="activity-item">

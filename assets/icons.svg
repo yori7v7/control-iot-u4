@@ -16,4 +16,10 @@
   <symbol id="right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></symbol>
   <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol>
   <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6m-5 0v7l-5 8a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-8V3m-6 13h8"/></symbol>
+  <symbol id="exit" viewBox="0 0 24 24"><path d="M11 5H5v14h6m-2-7h11m-4-4 4 4-4 4"/></symbol>
+  <symbol id="lights" viewBox="0 0 24 24"><path d="M11 5c-4.4 0-8 3.1-8 7s3.6 7 8 7h1V5Zm4 3 6-2m-6 6h6m-6 4 6 2"/></symbol>
+  <symbol id="speed" viewBox="0 0 24 24"><path d="M5 18a9 9 0 1 1 14 0H5Zm7-6 4-4m-10 4h1m5-6v1m5 5h1"/><circle cx="12" cy="13" r="1"/></symbol>
+  <symbol id="horn" viewBox="0 0 24 24"><path d="M4 9h5l5-4v14l-5-4H4zm13 0a4 4 0 0 1 0 6m2-8a7 7 0 0 1 0 10"/></symbol>
+  <symbol id="diagonal-up" viewBox="0 0 24 24"><path d="m6 18 12-12M9 6h9v9"/></symbol>
+  <symbol id="diagonal-down" viewBox="0 0 24 24"><path d="M18 6 6 18m9 0H6V9"/></symbol>
 </svg>

@@ -2,6 +2,8 @@
 
 Panel web para operar el vehículo IoT ID 1 de la práctica **Aplicación de control para IoT**, unidad 04. Integra el backend existente de FastAPI en AWS mediante HTTPS y WSS. Usa HTML semántico, CSS, Bootstrap 5.3.8 local y clases JavaScript con módulos nativos.
 
+[Abrir Control IoT en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio del frontend](https://github.com/yori7v7/control-iot-u4)
+
 **Autor** · Diego Yorel Castelán Silva, Ingeniería en Sistemas Computacionales  
 **Institución** · Tecnológico Nacional de México — Instituto Tecnológico de Pachuca  
 **Asignatura** · Implementación de Soluciones I · Pinedo Fernández Víctor Manuel · 2026
@@ -66,15 +68,16 @@ npm run test:browser
 
 La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./docs/pruebas.md) describe las comprobaciones locales con simulación y tráfico interceptado. La [auditoría real de solo lectura](./docs/validacion-real.md) documenta las respuestas observadas en AWS, los pasos de la DEMO y la evidencia de CORS y WSS en Chrome. Ninguna suite del frontend requiere una clave administrativa.
 
+La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. Las pruebas manuales de Swagger y WSS que reportó el propietario corresponden al backend. La revisión de GitHub Pages comprueba el frontend desde el origen publicado sin operaciones de control.
+
 El [protocolo de validación funcional](./docs/validacion-funcional.md) fija la secuencia protegida, los criterios de correlación y el uso del observador WSS independiente. Para ensayar únicamente el observador sin red, ejecuta `node tests/observe-wss.js --simulacion`.
+
+El [registro del rediseño visual](./docs/redisenio-visual.md) documenta la identidad, el respaldo de Git y la verificación local en diferentes tamaños de pantalla.
 
 ## Publicación en GitHub Pages
 
-La publicación queda pendiente de autorización. La URL prevista es [yori7v7.github.io/control-iot-u4](https://yori7v7.github.io/control-iot-u4/).
+La fuente de Pages es **Deploy from a branch**, rama `main`, carpeta **/(root)**. El frontend usa recursos relativos y no requiere compilar JavaScript. GitHub Pages aplica `_config.yml` para excluir del sitio las pruebas, documentos, archivos de desarrollo y cachés. Las pruebas y la documentación siguen disponibles en el repositorio. [Configuración de la fuente de Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
-1. Con la autorización, confirma el repositorio `yori7v7/control-iot-u4` y prepara el commit inicial en la rama `main`. Revisa `git status --short` y los cambios staged antes de subirlos.
-2. Sube `main` al repositorio del frontend. En **Settings → Pages**, selecciona **Deploy from a branch**, rama `main` y carpeta **/(root)**. El marcador `.nojekyll` permite entregar los archivos directamente. [Configurar el origen de publicación](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
-3. Abre la URL que indique GitHub, verifica los recursos y el favicon, y comprueba los estados y catálogos contra AWS desde ese origen. Ejecuta las pruebas de control real únicamente con autorización expresa y el microcontrolador desconectado.
-4. Entrega los enlaces del repositorio y GitHub Pages junto con las conclusiones y los resultados verificados en la plataforma académica.
+La URL sin parámetros abre en modo real. La simulación se activa mediante `?modo=simulacion`, muestra un aviso y usa únicamente datos de prueba.
 
 Bootstrap 5.3.8 se distribuye como CSS bajo licencia MIT. [Versión oficial](https://getbootstrap.com/docs/5.3/getting-started/download/) · [Licencia incluida](./css/vendor/bootstrap-LICENSE.txt)

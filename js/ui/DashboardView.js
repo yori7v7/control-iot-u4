@@ -4,13 +4,13 @@ const DIRECTIONS = {
   DERECHA: ['Derecha', 'right'],
   RETROCEDER: ['Retroceder', 'down'],
 };
-const EXTRA_LABELS = {
-  LUCES: 'Luces',
-  VELOCIDAD: 'Velocidad',
-  DEMO_ORIGINAL: 'DEMO original',
-  CLAXON: 'Claxon',
-  AVANZAR_DERECHA: 'Avanzar y derecha',
-  RETROCEDER_IZQUIERDA: 'Retroceder e izquierda',
+const EXTRAS = {
+  LUCES: ['Luces', 'lights'],
+  VELOCIDAD: ['Velocidad', 'speed'],
+  DEMO_ORIGINAL: ['DEMO original', 'sequence'],
+  CLAXON: ['Claxon', 'horn'],
+  AVANZAR_DERECHA: ['Avanzar y derecha', 'diagonal-up'],
+  RETROCEDER_IZQUIERDA: ['Retroceder e izquierda', 'diagonal-down'],
 };
 const PHASE_LABELS = {
   queued: 'Solicitud en espera.',
@@ -87,7 +87,8 @@ export class DashboardView {
     }
     for (const command of active.values()) {
       if (command.key !== 'DETENER' && !Object.hasOwn(DIRECTIONS, command.key)) {
-        extras.append(this.#commandButton(command.key, EXTRA_LABELS[command.key] ?? command.name, request));
+        const [label, icon] = EXTRAS[command.key] ?? [command.name];
+        extras.append(this.#commandButton(command.key, label, request, icon));
       }
     }
     this.element('no-extras').hidden = extras.childElementCount > 0;
@@ -132,6 +133,7 @@ export class DashboardView {
   }
 
   setPreview(key) {
+    this.element('joystick').dataset.direction = key ?? '';
     this.#text('joystick-direction', key ? key.replaceAll('_', ' ') : 'POSICIÓN NEUTRAL');
   }
 

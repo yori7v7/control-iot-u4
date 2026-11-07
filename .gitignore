@@ -1,10 +1,17 @@
 node_modules/
 playwright-report/
 test-results/
+coverage/
+.cache/
+.jekyll-cache/
+.sass-cache/
+_site/
 .env
 .env.*
 *.pem
 *.key
 *.log
+*.har
+*.tmp
 Thumbs.db
 .DS_Store
