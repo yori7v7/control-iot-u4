@@ -27,7 +27,7 @@ async function interceptBackend(page, { serve = true } = {}) {
   const sentToSocket = [];
   const fixtures = {
     requests, posts, sockets, sentToSocket, apiAvailable: true, rdsAvailable: true,
-    socketAvailable: true, stopStatus: null,
+    socketAvailable: true, stopStatus: null, publishMovement: true,
     beforeMovementResponse: async () => {}, beforeDemoStartResponse: async () => {},
     beforeDemoCancelResponse: async () => {},
   };
@@ -41,6 +41,7 @@ async function interceptBackend(page, { serve = true } = {}) {
     id_demo_movimiento: null, id_comando: null, orden: null, comando: null, codigo: null,
     duracion_ms: null, pausa_ms: null, conectado: null, mensaje: null, ...data,
   });
+  fixtures.emitMovement = () => emit('movimiento', fixtures.lastMovement);
 
   // Fulfill intercepted browser traffic without forwarding any request to AWS.
   await page.routeWebSocket('**/*', socket => {
@@ -99,7 +100,8 @@ async function interceptBackend(page, { serve = true } = {}) {
           id_comando: command.id_comando, comando: command.nombre, codigo: command.codigo,
           conectado: false, origen: 'API',
         };
-        if (fixtures.socketAvailable) emit('movimiento', { ...details, timestamp });
+        fixtures.lastMovement = { ...details, timestamp };
+        if (fixtures.socketAvailable && fixtures.publishMovement) fixtures.emitMovement();
         await fixtures.beforeMovementResponse(command.id_comando);
         return json({ resultado: 'ok', id_vehiculo: 1, fecha_actualizacion: timestamp, ...details });
       }
@@ -354,6 +356,7 @@ test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETEN
 });
 
 test('simulación conserva la DEMO cancelada y actualiza el aviso tras DETENER', async ({ page }) => {
+  await page.clock.install();
   await interceptBackend(page, { serve: false });
   await page.goto(SIMULATION);
   await page.getByLabel('Seleccionar DEMO').selectOption('1');
@@ -367,11 +370,22 @@ test('simulación conserva la DEMO cancelada y actualiza el aviso tras DETENER',
   await expect(state).toContainText('Movimiento 1 · AVANZAR');
   await expect(state).toContainText('DETENER aceptado por HTTP 200. Evento WSS compatible recibido.');
   await expect(state).not.toContainText('Usa DETENER');
-  await page.locator('#demo-start').click();
-  await expect(state).not.toContainText('DETENER aceptado');
+  await page.clock.fastForward(4100);
+  await expect(state).toHaveText('Sin DEMO en ejecución.');
+  await expect(page.locator('#demo-http')).toBeHidden();
+  await expect(page.locator('#demo-progress')).toBeHidden();
+  await expect(page.locator('#demo-progress')).toHaveAttribute('value', '0');
+  await expect(page.locator('#demo-select')).toHaveValue('1');
+  await expect(page.locator('#demo-start')).toBeEnabled();
+  await page.getByText('Último resultado', { exact: true }).click();
+  const summary = page.locator('#demo-last-result-text');
+  await expect(summary).toContainText('Cancelación REST · HTTP 200 aceptado.');
+  await expect(summary).toContainText('Cancelación observada por WSS. Movimiento 1 · AVANZAR.');
+  await expect(summary).toContainText('DETENER aceptado por HTTP 200. Evento WSS compatible recibido.');
 });
 
 test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una coincidencia', async ({ page }) => {
+  await page.clock.install();
   const fixtures = await interceptBackend(page);
   await page.goto(APP);
   await enableControl(page);
@@ -392,12 +406,104 @@ test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una 
   fixtures.stopStatus = 503;
   await page.locator('#stop').click();
   await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+  await page.clock.fastForward(4100);
+  await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+  await expect(page.locator('#demo-last-result')).toBeHidden();
   fixtures.stopStatus = null;
+
+  const timeoutGate = Promise.withResolvers();
+  fixtures.beforeMovementResponse = () => timeoutGate.promise;
+  try {
+    await page.locator('#stop').click();
+    await expect(page.locator('#command-state')).toContainText('Esperando respuesta HTTP.');
+    await page.clock.fastForward(CONFIG.requestTimeoutMs + 100);
+    await expect(page.locator('#command-state')).toContainText('agotó el tiempo');
+    await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+  } finally {
+    timeoutGate.resolve();
+  }
+  fixtures.beforeMovementResponse = async () => {};
   await page.locator('#stop').click();
   await expect(state).toContainText('DETENER aceptado por HTTP 200.');
   await expect(state).toContainText('Cancelación observada por WSS. Movimiento 1 · AVANZAR.');
   await expect(state).not.toContainText('Evento WSS compatible recibido.');
   await expect(state).not.toContainText('Usa DETENER');
+  const requestCount = fixtures.requests.length;
+  await page.clock.fastForward(4100);
+  await expect(state).toHaveText('Sin DEMO en ejecución.');
+  await expect(page.locator('#demo-last-result-text')).toContainText('DETENER aceptado por HTTP 200.');
+  await expect(page.locator('#demo-last-result-text')).not.toContainText('Evento WSS compatible recibido.');
+  expect(fixtures.requests).toHaveLength(requestCount);
+
+  fixtures.socketAvailable = true;
+  await page.clock.fastForward(9000);
+  await expect(page.locator('#ws-indicator')).toContainText('En línea');
+  await expect(state).toHaveText('Sin DEMO en ejecución.');
+});
+
+test('el temporizador anterior no afecta a otra DEMO y el cierre normal conserva su propio resultado', async ({ page }) => {
+  await page.clock.install();
+  const fixtures = await interceptBackend(page);
+  await page.goto(APP);
+  await enableControl(page);
+  await page.locator('#demo-select').selectOption('21');
+  const start = page.locator('#demo-start');
+  const state = page.locator('#demo-state');
+  await start.click();
+  await expect(page.locator('#demo-http')).toContainText('HTTP 202');
+  fixtures.emitDemo('demo_inicio');
+  await page.locator('#demo-cancel').click();
+  await expect(page.locator('#demo-http')).toContainText('Cancelación REST · HTTP 200');
+  await page.locator('#stop').click();
+  await expect(state).toContainText('DETENER aceptado por HTTP 200.');
+
+  await start.click();
+  await expect(page.locator('#demo-http')).toContainText('Inicio REST · HTTP 202');
+  fixtures.emitDemo('demo_inicio');
+  fixtures.emitDemo('demo_movimiento', { ...step, conectado: false });
+  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await page.clock.fastForward(4100);
+  await expect(state).toContainText('Paso observado por WSS. Movimiento 1 · AVANZAR.');
+  await expect(page.locator('#demo-progress')).toBeVisible();
+  await expect(page.locator('#demo-last-result-text')).toContainText('DETENER aceptado por HTTP 200.');
+
+  fixtures.emitDemo('demo_fin');
+  await expect(state).toContainText('Finalización observada por WSS.');
+  await page.clock.fastForward(4100);
+  await expect(state).toHaveText('Sin DEMO en ejecución.');
+  await expect(page.locator('#demo-progress')).toBeHidden();
+  await expect(page.locator('#demo-last-result-text')).toContainText('Finalización observada por WSS.');
+  await expect(page.locator('#demo-last-result-text')).not.toContainText('DETENER');
+
+  await start.click();
+  await expect(page.locator('#demo-http')).toContainText('Inicio REST · HTTP 202');
+  fixtures.emitDemo('demo_error');
+  await expect(state).toContainText('Error de ejecución observado por WSS.');
+  await page.clock.fastForward(4100);
+  await expect(state).toContainText('Error de ejecución observado por WSS.');
+});
+
+test('un WSS compatible tardío actualiza solo el resumen cuando ya volvió el estado neutral', async ({ page }) => {
+  await page.clock.install();
+  const fixtures = await interceptBackend(page);
+  fixtures.publishMovement = false;
+  await page.goto(APP);
+  await enableControl(page);
+  await page.locator('#demo-select').selectOption('21');
+  await page.locator('#demo-start').click();
+  await expect(page.locator('#demo-http')).toContainText('HTTP 202');
+  fixtures.emitDemo('demo_inicio');
+  await page.locator('#demo-cancel').click();
+  await expect(page.locator('#demo-http')).toContainText('Cancelación REST · HTTP 200');
+  const state = page.locator('#demo-state');
+  await page.locator('#stop').click();
+  await expect(state).toContainText('DETENER aceptado por HTTP 200.');
+  await page.clock.fastForward(4100);
+  await expect(state).toHaveText('Sin DEMO en ejecución.');
+  fixtures.emitMovement();
+  await expect(page.locator('#demo-last-result-text')).toContainText('Evento WSS compatible recibido.');
+  await expect(state).toHaveText('Sin DEMO en ejecución.');
+  await expect(page.locator('#demo-http')).toBeHidden();
 });
 
 test('los tres indicadores se actualizan de forma independiente y se recuperan', async ({ page }) => {

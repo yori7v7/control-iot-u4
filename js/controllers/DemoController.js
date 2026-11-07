@@ -55,7 +55,8 @@ export class DemoController {
     return {
       catalog: this.#catalog, selectedId: this.#selectedId, steps: this.#steps,
       stepsStatus: this.#stepsStatus, stepsError: this.#stepsError,
-      activeId: active?.id ?? null, phase: run?.phase ?? 'idle', message: run?.message ?? null,
+      activeId: active?.id ?? null, runToken: run?.token ?? null,
+      phase: run?.phase ?? 'idle', message: run?.message ?? null,
       progress: run?.progress ?? null, observedSteps: run?.seen.size ?? 0, lastEvent: this.#lastEvent,
       http: this.#http, stop: run?.stop ?? null,
       canStart: Boolean(!this.busy && selected?.active && this.#stepsStatus === 'ready' &&
@@ -240,7 +241,7 @@ export class DemoController {
         this.#terminal.message = message;
         this.#terminal.awaitingCancelEvent = false;
       } else {
-        this.#terminal = { id: event.id_demo, phase, message, seen: new Set() };
+        this.#terminal = { id: event.id_demo, token: Symbol(), phase, message, seen: new Set() };
       }
     } else if (!run && type === 'demo_movimiento' && this.#terminal?.id === event.id_demo &&
       this.#terminal.awaitingCancelEvent) {
@@ -265,7 +266,7 @@ export class DemoController {
   }
 
   #newRun(id) {
-    const run = { id, phase: 'idle', message: null, progress: null, seen: new Set() };
+    const run = { id, token: Symbol(), phase: 'idle', message: null, progress: null, seen: new Set() };
     this.#terminal = null;
     if (!this.#tracked.size) this.#http = null;
     this.#tracked.set(id, run);

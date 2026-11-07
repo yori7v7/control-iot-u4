@@ -175,10 +175,12 @@ test('los pasos y el resultado de DEMO proceden de WSS, incluso si llegan antes 
   demo.handleEvent(step);
   demo.handleEvent(step);
   assert.equal(demo.state.phase, 'running');
+  const runToken = demo.state.runToken;
   assert.equal(demo.state.progress.orden, 3);
   assert.equal(demo.state.observedSteps, 1);
   demo.handleEvent({ tipo_evento: 'demo_fin', id_vehiculo: 1, id_demo: 1 });
   assert.equal(demo.state.phase, 'completed');
+  assert.equal(demo.state.runToken, runToken);
   response.resolve({ id_vehiculo: 1, id_demo: 1, estado: 'iniciada' });
   await start;
   assert.equal(demo.state.http.status, 202);

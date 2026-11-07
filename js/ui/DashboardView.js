@@ -28,6 +28,8 @@ const EVENT_LABELS = {
   demo_error: 'Error de DEMO',
 };
 const SVG = 'http://www.w3.org/2000/svg';
+const DEMO_RESULT_MS = 4000;
+const DEMO_IDLE = 'Sin DEMO en ejecución.';
 
 function setText(node, content) {
   if (node.textContent !== content) node.textContent = content;
@@ -39,6 +41,7 @@ export class DashboardView {
   #catalog = null;
   #demoCatalog = null;
   #steps = null;
+  #demoNotice = null;
 
   constructor(document) {
     this.#document = document;
@@ -184,21 +187,8 @@ export class DashboardView {
     this.#text('demo-description', description ?? '');
     this.element('demo-start').disabled = !state.canStart;
     this.element('demo-cancel').disabled = !state.canCancel;
-    this.#setDemoHttp(state.http);
-    this.element('demo-state').dataset.phase = state.phase;
-    const activeOther = state.activeId !== null && state.activeId !== state.selectedId ? `DEMO activa ID ${state.activeId}.` : null;
-    const progress = state.progress ? `Movimiento ${state.progress.orden} · ${state.progress.comando}.` : null;
-    const helper = state.stepsStatus === 'ready' && state.steps.length && !state.canStart ? canStart : null;
-    const message = state.message ?? helper ?? 'Sin ejecución observada.';
-    const cancelNote = state.phase === 'canceled' ? this.#demoStopNote(state.stop) : null;
-    this.#text('demo-state', [activeOther, message, progress, cancelNote]
-      .filter(Boolean).join(' '));
+    this.#setDemoStatus(state, busy, canStart);
 
-    const bar = this.element('demo-progress');
-    const expected = state.lastEvent?.id_demo === state.selectedId ? state.steps.length : 0;
-    bar.hidden = !state.observedSteps || !expected;
-    bar.max = expected || 1;
-    bar.value = Math.min(state.observedSteps, bar.max);
     const details = this.element('demo-steps');
     details.hidden = state.selectedId === null;
     const stepsMessage = {
@@ -219,6 +209,61 @@ export class DashboardView {
     }
   }
 
+  #setDemoStatus(state, busy, canStart) {
+    const httpText = this.#demoHttpText(state.http);
+    const activeOther = state.activeId !== null && state.activeId !== state.selectedId ? `DEMO activa ID ${state.activeId}.` : null;
+    const progress = state.progress ? `Movimiento ${state.progress.orden} · ${state.progress.comando}.` : null;
+    const helper = state.stepsStatus === 'ready' && state.steps.length && !state.canStart ? canStart : null;
+    const cancelNote = state.phase === 'canceled' ? this.#demoStopNote(state.stop) : null;
+    const status = [activeOther, state.message ?? helper ?? DEMO_IDLE, progress, cancelNote].filter(Boolean).join(' ');
+    const success = !busy && state.http?.phase !== 'error' &&
+      (state.phase === 'completed' || (state.phase === 'canceled' && state.stop?.phase === 'accepted'));
+
+    if (success) {
+      this.#text('demo-last-result-text', [httpText, status].filter(Boolean).join(' '));
+      this.element('demo-last-result').hidden = false;
+    }
+    this.#scheduleDemoNotice(success ? state.runToken : null);
+    if (this.#demoNotice?.expired) {
+      this.#showNeutralDemo();
+      return;
+    }
+
+    this.#setDemoHttp(httpText);
+    this.element('demo-state').dataset.phase = state.phase;
+    this.#text('demo-state', status);
+    const bar = this.element('demo-progress');
+    const expected = state.lastEvent?.id_demo === state.selectedId ? state.steps.length : 0;
+    bar.hidden = !state.observedSteps || !expected;
+    bar.max = expected || 1;
+    bar.value = Math.min(state.observedSteps, bar.max);
+  }
+
+  #scheduleDemoNotice(key) {
+    if ((this.#demoNotice?.key ?? null) === key) return;
+    clearTimeout(this.#demoNotice?.timer);
+    this.#demoNotice = null;
+    if (key === null) return;
+
+    const notice = { key, expired: false };
+    notice.timer = setTimeout(() => {
+      if (this.#demoNotice !== notice) return;
+      notice.expired = true;
+      this.#showNeutralDemo();
+    }, DEMO_RESULT_MS);
+    this.#demoNotice = notice;
+  }
+
+  #showNeutralDemo() {
+    this.#setDemoHttp('');
+    this.element('demo-state').dataset.phase = 'idle';
+    this.#text('demo-state', DEMO_IDLE);
+    const bar = this.element('demo-progress');
+    bar.hidden = true;
+    bar.value = 0;
+    bar.max = 1;
+  }
+
   #demoStopNote(stop) {
     if (stop?.phase === 'accepted') {
       const observation = stop.compatible ? ' Evento WSS compatible recibido.'
@@ -229,14 +274,18 @@ export class DashboardView {
     return `${warning}Usa DETENER para enviar una orden de parada.`;
   }
 
-  #setDemoHttp(http) {
-    this.element('demo-http').hidden = !http;
-    if (!http) return;
+  #demoHttpText(http) {
+    if (!http) return '';
     const action = http.action === 'start' ? 'Inicio REST' : 'Cancelación REST';
     const outcome = http.phase === 'accepted' ? `HTTP ${http.status} aceptado.`
       : http.phase === 'error' && http.status ? `Error en la solicitud (HTTP ${http.status}).`
         : PHASE_LABELS[http.phase];
-    this.#text('demo-http', `${action} · ${outcome}`);
+    return `${action} · ${outcome}`;
+  }
+
+  #setDemoHttp(text) {
+    this.element('demo-http').hidden = !text;
+    this.#text('demo-http', text);
   }
 
   clearForm() {

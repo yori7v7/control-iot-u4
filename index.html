@@ -142,8 +142,12 @@
               </button>
             </div>
             <p class="demo-rest" id="demo-http" role="status" hidden></p>
-            <p class="demo-state" id="demo-state" role="status">Sin ejecución observada.</p>
+            <p class="demo-state" id="demo-state" role="status">Sin DEMO en ejecución.</p>
             <progress id="demo-progress" max="1" value="0" aria-label="Movimientos de DEMO observados por WebSocket" hidden></progress>
+            <details class="demo-steps" id="demo-last-result" hidden>
+              <summary>Último resultado</summary>
+              <p class="demo-rest mt-0 mb-1" id="demo-last-result-text"></p>
+            </details>
             <details class="demo-steps" id="demo-steps" hidden>
               <summary id="demo-steps-title">Movimientos programados</summary>
               <p id="demo-steps-status" class="muted mb-2" role="status"></p>
