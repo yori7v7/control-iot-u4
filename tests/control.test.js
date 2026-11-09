@@ -376,7 +376,7 @@ test('DETENER puede reintentarse si la DEMO se canceló y el POST individual fal
   assert.equal(demo.state.stop.phase, 'accepted');
 });
 
-function joystickFixture() {
+function joystickFixture(canCommand = name => name !== 'RETROCEDER_IZQUIERDA') {
   const window = new EventTarget();
   const document = Object.assign(new EventTarget(), { defaultView: window, hidden: false });
   const element = Object.assign(new EventTarget(), {
@@ -387,7 +387,7 @@ function joystickFixture() {
   const knob = { style: {}, getBoundingClientRect: () => ({ width: 40, height: 40 }) };
   const commands = [];
   const controller = new JoystickController({ element, knob,
-    canCommand: name => name !== 'RETROCEDER_IZQUIERDA',
+    canCommand,
     onDirection: name => commands.push(name), onRelease: () => commands.push('DETENER'),
   });
   return { controller, element, knob, window, document, commands };
@@ -425,6 +425,65 @@ test('joystick admite teclado y detiene al soltar, sin repetir el DETENER de la 
   dispatch(window, 'pointermove', { ...pointer, clientX: 101, clientY: 100 });
   dispatch(window, 'pointerup', pointer);
   assert.deepEqual(commands, ['DERECHA', 'DETENER', 'AVANZAR', 'DETENER']);
+  controller.destroy();
+});
+
+test('un arrastre recorre los ocho sectores, deduplica movimientos y vuelve a neutral', () => {
+  const { controller, element, knob, window, commands } = joystickFixture(() => true);
+  const pointer = { pointerId: 1, pointerType: 'touch', button: 0, buttons: 1 };
+  const sectors = [
+    [100, 40, 'AVANZAR'], [160, 40, 'AVANZAR_DERECHA'], [160, 100, 'DERECHA'],
+    [160, 160, 'RETROCEDER_DERECHA'], [100, 160, 'RETROCEDER'],
+    [40, 160, 'RETROCEDER_IZQUIERDA'], [40, 100, 'IZQUIERDA'], [40, 40, 'AVANZAR_IZQUIERDA'],
+  ];
+
+  dispatch(element, 'pointerdown', { ...pointer, clientX: 100, clientY: 100 });
+  assert.deepEqual(commands, []);
+  for (const [clientX, clientY] of sectors) {
+    dispatch(window, 'pointermove', { ...pointer, clientX, clientY });
+    dispatch(window, 'pointermove', { ...pointer, clientX, clientY });
+  }
+  assert.deepEqual(commands, sectors.map(([, , name]) => name));
+
+  dispatch(window, 'pointermove', { ...pointer, clientX: 100, clientY: 100 });
+  assert.deepEqual(commands.slice(-2), ['AVANZAR_IZQUIERDA', 'DETENER']);
+  assert.equal(knob.style.translate, '0px 0px');
+  dispatch(window, 'pointerup', pointer);
+  assert.equal(commands.length, sectors.length + 1);
+
+  dispatch(element, 'pointerdown', { ...pointer, clientX: 160, clientY: 160 });
+  dispatch(window, 'pointerup', pointer);
+  assert.deepEqual(commands.slice(-2), ['RETROCEDER_DERECHA', 'DETENER']);
+  assert.equal(knob.style.translate, '0px 0px');
+  controller.destroy();
+});
+
+test('el teclado combina las nuevas diagonales y detiene al soltar ambas teclas', () => {
+  const { controller, element, knob, commands } = joystickFixture(() => true);
+  for (const [type, key] of [
+    ['keydown', 'ArrowUp'], ['keydown', 'ArrowLeft'],
+    ['keyup', 'ArrowLeft'], ['keyup', 'ArrowUp'],
+    ['keydown', 'ArrowRight'], ['keydown', 'ArrowDown'],
+    ['keyup', 'ArrowDown'], ['keyup', 'ArrowRight'],
+  ]) {
+    assert.equal(dispatch(element, type, { key }).defaultPrevented, true);
+  }
+  assert.deepEqual(commands, [
+    'AVANZAR', 'AVANZAR_IZQUIERDA', 'AVANZAR', 'DETENER',
+    'DERECHA', 'RETROCEDER_DERECHA', 'DERECHA', 'DETENER',
+  ]);
+  assert.equal(knob.style.translate, '0px 0px');
+  controller.destroy();
+});
+
+test('sin las diagonales activas del catálogo se mantiene el cardinal dominante', () => {
+  const missing = new Set(['AVANZAR_IZQUIERDA', 'RETROCEDER_DERECHA']);
+  const { controller, element, window, commands } = joystickFixture(name => !missing.has(name));
+  const pointer = { pointerId: 1, pointerType: 'mouse', button: 0, buttons: 1 };
+  dispatch(element, 'pointerdown', { ...pointer, clientX: 40, clientY: 40 });
+  dispatch(window, 'pointermove', { ...pointer, clientX: 160, clientY: 140 });
+  dispatch(window, 'pointerup', pointer);
+  assert.deepEqual(commands, ['AVANZAR', 'DERECHA', 'DETENER']);
   controller.destroy();
 });
 

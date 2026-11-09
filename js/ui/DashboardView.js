@@ -10,7 +10,9 @@ const EXTRAS = {
   DEMO_ORIGINAL: ['DEMO original', 'sequence'],
   CLAXON: ['Claxon', 'horn'],
   AVANZAR_DERECHA: ['Avanzar y derecha', 'diagonal-up'],
+  AVANZAR_IZQUIERDA: ['Avanzar e izquierda', 'diagonal-up-left'],
   RETROCEDER_IZQUIERDA: ['Retroceder e izquierda', 'diagonal-down'],
+  RETROCEDER_DERECHA: ['Retroceder y derecha', 'diagonal-down-right'],
 };
 const PHASE_LABELS = {
   queued: 'Solicitud en espera.',
