@@ -20,7 +20,7 @@ const step = {
   duracion_ms: 600, pausa_ms: 150,
 };
 
-async function interceptBackend(page, { serve = true } = {}) {
+async function interceptBackend(page, { serve = true, catalog = commandCatalog } = {}) {
   const requests = [];
   const posts = [];
   const sockets = [];
@@ -78,7 +78,7 @@ async function interceptBackend(page, { serve = true } = {}) {
         id_vehiculo: 1, nombre: 'Vehículo de prueba REST', modelo: null, descripcion: null,
         microcontrolador: null, fecha_registro: null, activo: true,
       });
-      if (path === `${VEHICLE}/comandos`) return json(commandCatalog);
+      if (path === `${VEHICLE}/comandos`) return json(catalog);
       if (path === `${VEHICLE}/demos`) return json([{
         id_demo: 21, id_vehiculo: 1, nombre: 'Circuito de prueba', descripcion: null, activo: true,
       }]);
@@ -90,7 +90,7 @@ async function interceptBackend(page, { serve = true } = {}) {
       posts.push({ path, body, key });
       if (key !== KEY) return json({ detail: `Texto remoto deliberadamente ignorado: ${key}` }, 403);
       if (path === MOVEMENT) {
-        const command = commandCatalog.find(item => item.id_comando === body?.id_comando && item.activo);
+        const command = catalog.find(item => item.id_comando === body?.id_comando && item.activo);
         if (!command) return json({ detail: 'Comando de prueba inexistente' }, 404);
         if (command.nombre === 'DETENER' && fixtures.stopStatus) {
           return json({ detail: 'Fallo de prueba al detener' }, fixtures.stopStatus);
@@ -301,6 +301,74 @@ test('el joystick deduplica dirección y DETENER reemplaza una orden pendiente',
   await expect(page.locator('#last-command')).toHaveText(/detener/i);
   await expect(page.locator('#command-state')).toContainText(/HTTP 200/i);
   expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([22, 11, 22, 66, 11]);
+});
+
+test('el joystick envía las ocho direcciones con los IDs del catálogo y se detiene al soltar', async ({ page }) => {
+  const sectors = [
+    [0, -1, 'AVANZAR', 22, 1], [1, -1, 'AVANZAR_DERECHA', 309, 9],
+    [1, 0, 'DERECHA', 66, 8], [1, 1, 'RETROCEDER_DERECHA', 410, 10],
+    [0, 1, 'RETROCEDER', 302, 2], [-1, 1, 'RETROCEDER_IZQUIERDA', 306, 6],
+    [-1, 0, 'IZQUIERDA', 44, 4], [-1, -1, 'AVANZAR_IZQUIERDA', 405, 5],
+  ];
+  const extraCommands = sectors.filter(([, , , id]) => id > 100)
+    .map(([, , nombre, id_comando, codigo]) => ({
+      id_comando, id_vehiculo: 1, nombre, codigo, activo: true, descripcion: null,
+    }));
+  const fixtures = await interceptBackend(page, { catalog: [...commandCatalog, ...extraCommands] });
+  await page.goto(APP);
+  await enableControl(page);
+  const joystick = page.locator('#joystick');
+  await joystick.scrollIntoViewIfNeeded();
+  const bounds = await joystick.boundingBox();
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height / 2;
+  const travel = bounds.width * 0.28;
+  const command = page.locator('#last-command');
+  const state = page.locator('#command-state');
+
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  for (const [dx, dy, name, id, code] of sectors) {
+    await page.mouse.move(x + dx * travel, y + dy * travel);
+    await expect(joystick).toHaveAttribute('data-direction', name);
+    await expect(command).toHaveText(`${name} · ID ${id}`);
+    await expect(state).toContainText('HTTP 200');
+    await expect(page.locator('#event-detail')).toContainText(`${name} · código ${code}`);
+  }
+  await page.mouse.up();
+  await expect(joystick).toHaveAttribute('data-direction', '');
+  await expect(page.locator('#joystick-direction')).toContainText(/neutral/i);
+  await expect(command).toHaveText('DETENER · ID 11');
+  await expect(state).toContainText('HTTP 200');
+  expect(fixtures.posts.map(({ body }) => body.id_comando)).toEqual([...sectors.map(([, , , id]) => id), 11]);
+  expect(fixtures.sentToSocket).toEqual([]);
+});
+
+test('la simulación muestra iconos para las nuevas diagonales y responde sin contactar AWS', async ({ page, request }) => {
+  const fixtures = await interceptBackend(page, { serve: false });
+  await page.goto(SIMULATION);
+  await expect(page.locator('#simulation-banner')).toBeVisible();
+  const sprite = await request.get(`${APP}assets/icons.svg`);
+  expect(sprite.ok()).toBe(true);
+  const symbols = await sprite.text();
+
+  for (const [label, name, id, code, icon] of [
+    ['Avanzar e izquierda', 'AVANZAR_IZQUIERDA', 101, 5, 'diagonal-up-left'],
+    ['Retroceder y derecha', 'RETROCEDER_DERECHA', 102, 10, 'diagonal-down-right'],
+  ]) {
+    const button = page.getByRole('button', { name: label });
+    await expect(button.locator('use')).toHaveAttribute('href', `./assets/icons.svg#${icon}`);
+    expect(symbols).toContain(`id="${icon}"`);
+    await button.click();
+    await expect(page.locator('#last-command')).toHaveText(`${name} · ID ${id}`);
+    await expect(page.locator('#command-state')).toContainText('HTTP 200');
+    await expect(page.locator('#event-detail')).toContainText(`${name} · código ${code}`);
+  }
+  await page.locator('#stop').click();
+  await expect(page.locator('#last-command')).toHaveText('DETENER · ID 1');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  expect(fixtures.requests).toEqual([]);
+  expect(fixtures.sockets).toEqual([]);
 });
 
 test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETENER', async ({ page }) => {

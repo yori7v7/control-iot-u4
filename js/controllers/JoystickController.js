@@ -138,14 +138,14 @@ export class JoystickController {
   #choose(x, y) {
     const horizontal = Math.abs(x);
     const vertical = Math.abs(y);
+    const longitudinal = y < 0 ? 'AVANZAR' : 'RETROCEDER';
+    const lateral = x < 0 ? 'IZQUIERDA' : 'DERECHA';
     const nearDiagonal = Math.min(horizontal, vertical) > DIAGONAL_RATIO * Math.max(horizontal, vertical);
     if (nearDiagonal) {
-      const diagonal = y < 0 && x > 0 ? 'AVANZAR_DERECHA' : y > 0 && x < 0 ? 'RETROCEDER_IZQUIERDA' : null;
-      if (diagonal && this.#canCommand(diagonal)) return diagonal;
+      const diagonal = `${longitudinal}_${lateral}`;
+      if (this.#canCommand(diagonal)) return diagonal;
     }
-    const cardinal = vertical >= horizontal
-      ? (y < 0 ? 'AVANZAR' : 'RETROCEDER')
-      : (x < 0 ? 'IZQUIERDA' : 'DERECHA');
+    const cardinal = vertical >= horizontal ? longitudinal : lateral;
     return this.#canCommand(cardinal) ? cardinal : null;
   }
 

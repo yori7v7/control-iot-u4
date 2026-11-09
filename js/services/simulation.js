@@ -14,6 +14,8 @@ const commands = [
   [1, 'DETENER', 0], [2, 'AVANZAR', 1], [3, 'RETROCEDER', 2], [4, 'IZQUIERDA', 4],
   [5, 'RETROCEDER_IZQUIERDA', 6], [6, 'DERECHA', 8], [7, 'AVANZAR_DERECHA', 9],
   [8, 'LUCES', 16], [9, 'VELOCIDAD', 32], [10, 'DEMO_ORIGINAL', 64], [11, 'CLAXON', 128],
+  // These IDs belong only to the in-process catalog.
+  [101, 'AVANZAR_IZQUIERDA', 5], [102, 'RETROCEDER_DERECHA', 10],
 ].map(([id_comando, nombre, codigo]) => ({
   id_comando, nombre, codigo, id_vehiculo: vehicle.id_vehiculo, descripcion: null, activo: true,
 }));
