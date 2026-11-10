@@ -1,6 +1,6 @@
 # Validación de la práctica 4.1
 
-Este informe conserva los resultados y pendientes de la etapa local. Consulta el [cierre de validación](./validacion-funcional.md#resultados-finales) para las pruebas desde GitHub Pages y los conteos automatizados más recientes.
+Este informe conserva los resultados y pendientes *históricos de la etapa local de preparación* del 7 de noviembre. Las columnas «Evidencia real pendiente» describen ese momento, no el estado actual. Consulta el [cierre de validación original](./validacion-funcional.md#resultados-finales) y la [ampliación de ocho direcciones](./validacion-funcional.md#ampliacion-posterior-joystick-de-ocho-direcciones-09112026) para los resultados posteriores y los conteos automatizados más recientes.
 
 Pruebas locales realizadas el 7 de noviembre de 2026 con Node.js 24 y Google Chrome en Windows. Se usaron dos modalidades. La simulación de la interfaz genera datos en memoria. La suite de navegador también abre la vista normal e intercepta REST y WSS con Playwright para comprobar qué enviaría el cliente y qué mostraría al recibir respuestas y eventos.
 
@@ -17,7 +17,7 @@ Pruebas locales realizadas el 7 de noviembre de 2026 con Node.js 24 y Google Chr
 
 `npm test` pasó **20 de 20** pruebas de modelos, transporte y controladores. `npm run test:browser` pasó **6 de 6** pruebas de navegador. `npm audit --audit-level=high` informó **0 vulnerabilidades** en las dependencias de desarrollo instaladas. Para reproducirlos, consulta [Inicio local y pruebas](../README.md#pruebas).
 
-Las comprobaciones directas de la fase inicial agotaron el tiempo de conexión. Los resultados de esa fase están en [Contratos](./contratos.md). La [auditoría real posterior](./validacion-real.md) verificó los GET contra AWS y el evento `estado_actual`. Conserva por separado la evidencia del navegador bajo el origen previsto y la publicación, que sigue pendiente.
+Las comprobaciones directas de la fase inicial agotaron el tiempo de conexión. Los resultados de esa fase están en [Contratos](./contratos.md). La [auditoría real posterior](./validacion-real.md) verificó los GET contra AWS y el evento `estado_actual`. La publicación estaba pendiente en esta etapa inicial; quedó realizada después y se verificó posteriormente desde GitHub Pages. Consulta el informe de validación funcional enlazado al comienzo.
 
 ## Evidencia para la entrega
 

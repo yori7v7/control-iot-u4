@@ -4,7 +4,7 @@ Panel web para operar el vehículo IoT ID 1 de la práctica **Aplicación de con
 
 [Abrir Control IoT en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio del frontend](https://github.com/yori7v7/control-iot-u4)
 
-Versión funcional del frontend [`5f341e6`](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611).
+Versión publicada de ocho direcciones [`e692f9e`](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e). La versión cerrada y entregada originalmente fue [`5f341e6`](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611).
 
 **Autor** · Diego Yorel Castelán Silva, Ingeniería en Sistemas Computacionales  
 **Institución** · Tecnológico Nacional de México — Instituto Tecnológico de Pachuca  
@@ -72,13 +72,31 @@ npm run test:browser
 
 La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./docs/pruebas.md) describe las comprobaciones locales con simulación y tráfico interceptado. La [auditoría real de solo lectura](./docs/validacion-real.md) documenta las respuestas observadas en AWS, los pasos de la DEMO y la evidencia de CORS y WSS en Chrome. Ninguna suite del frontend requiere una clave administrativa.
 
-La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. En la versión funcional más reciente pasaron **24 pruebas de Node y 13 de Chrome**, con simulación y tráfico interceptado.
+La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. En la versión original entregada pasaron **24 pruebas de Node y 13 de Chrome**; tras ampliar el joystick a ocho direcciones, Codex reportó **27 pruebas de Node y 15 de Chrome** aprobadas, con simulación y tráfico interceptado.
 
 El propietario confirmó desde GitHub Pages la conexión con AWS real, los tres indicadores, los comandos y botones con HTTP 200, las cuatro direcciones del joystick, DETENER por REST y WSS, la finalización y cancelación de la DEMO, y DETENER posterior por HTTP 200 y WSS. Las pruebas anteriores de Swagger y WSS corresponden al backend. [Resultados finales y protocolo de validación](./docs/validacion-funcional.md)
 
 Para ensayar el observador sin red, ejecuta `node tests/observe-wss.js --simulacion`.
 
 El [registro del rediseño visual](./docs/redisenio-visual.md) documenta la identidad, el respaldo de Git y la verificación local en diferentes tamaños de pantalla.
+
+## Ampliación posterior a la entrega: ocho direcciones (09/11/2026)
+
+El joystick interpreta ocho sectores, con cuatro movimientos cardinales y cuatro diagonales. Al soltar, regresar a la zona neutral o perder la captura, solicita DETENER; no es un mando analógico de velocidad o giro proporcional. Si falta una diagonal activa en el catálogo, utiliza el cardinal dominante.
+
+| Dirección | Comando | `id_comando` en RDS | Código 74HC595 |
+| --- | --- | ---: | ---: |
+| ↑ | `AVANZAR` | 2 | 1 |
+| ↗ | `AVANZAR_DERECHA` | 7 | 9 |
+| → | `DERECHA` | 6 | 8 |
+| ↘ | `RETROCEDER_DERECHA` | **17** | **10** |
+| ↓ | `RETROCEDER` | 3 | 2 |
+| ↙ | `RETROCEDER_IZQUIERDA` | 5 | 6 |
+| ← | `IZQUIERDA` | 4 | 4 |
+| ↖ | `AVANZAR_IZQUIERDA` | **16** | **5** |
+| Centro | `DETENER` | 1 | 0 |
+
+El código usa IDs del catálogo leído de AWS, no IDs de prueba fijos; los dos comandos nuevos se añadieron a RDS y constan activos. La versión pública está en `main`, commit `e692f9e`, con despliegue [GitHub Pages exitoso](https://github.com/yori7v7/control-iot-u4/actions/runs/42723870488). Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepción y despacho WSS de las ocho direcciones, incluidas las nuevas, y DETENER. **No se ha verificado el movimiento físico de las dos diagonales nuevas.** Véase [validación de la ampliación](./docs/validacion-funcional.md#ampliacion-posterior-joystick-de-ocho-direcciones-09112026).
 
 ## Publicación en GitHub Pages
 

@@ -1,6 +1,6 @@
 # Validación funcional REST/WSS
 
-El propietario confirmó la operación del frontend publicado con AWS real. La versión funcional del frontend es [`5f341e6`](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611). [Aplicación en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio](https://github.com/yori7v7/control-iot-u4)
+El propietario confirmó la operación del frontend publicado con AWS real. El cierre de la práctica entregada utilizó la versión [`5f341e6`](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611); la ampliación posterior de ocho direcciones está publicada en [`e692f9e`](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e). [Aplicación en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio](https://github.com/yori7v7/control-iot-u4)
 
 ## Resultados finales
 
@@ -26,7 +26,33 @@ En una fase anterior, el propietario reportó comprobaciones directas del backen
 
 ### Pruebas automatizadas y verificación publicada en simulación
 
-En la última revisión del frontend pasaron **24 pruebas de Node** con `npm test` y **13 pruebas de Chrome** con `npm run test:browser`. Se usaron simulación y tráfico interceptado. La verificación adicional desde GitHub Pages ejercitó en simulación la cancelación, DETENER, el retorno al estado neutral, la conservación del último resultado y el selector nativo, en Chrome para Windows y emulación Pixel 7. [Despliegue de la versión funcional](https://github.com/yori7v7/control-iot-u4/actions/runs/42418462260)
+En la revisión de la versión original entregada pasaron **24 pruebas de Node** con `npm test` y **13 pruebas de Chrome** con `npm run test:browser`. Se usaron simulación y tráfico interceptado. La verificación adicional desde GitHub Pages ejercitó en simulación la cancelación, DETENER, el retorno al estado neutral, la conservación del último resultado y el selector nativo, en Chrome para Windows y emulación Pixel 7. [Despliegue de la versión funcional](https://github.com/yori7v7/control-iot-u4/actions/runs/42418462260)
+
+## Ampliación posterior: joystick de ocho direcciones (09/11/2026)
+
+Esta sección es posterior a la entrega original de la práctica 4.1 y conserva sus resultados históricos. La actualización se publicó en [GitHub Pages](https://yori7v7.github.io/control-iot-u4/) mediante el commit [`e692f9e`](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e) y el [despliegue exitoso](https://github.com/yori7v7/control-iot-u4/actions/runs/42723870488). El firmware de ocho direcciones se integró por separado en el [backend](https://github.com/yori7v7/vehiculo_iot_api_dev/pull/2), sin cambios en FastAPI, Stored Procedures o Caddy.
+
+### Catálogo real y pruebas de frontend
+
+El propietario registró en RDS dos nuevos comandos activos mediante `POST /vehiculos/1/comandos`: `AVANZAR_IZQUIERDA` (`id_comando: 16`, código `5`, Q0+Q2) y `RETROCEDER_DERECHA` (`id_comando: 17`, código `10`, Q1+Q3). El GET del catálogo devolvió 13 comandos activos, conservando los 11 originales.
+
+Codex reportó **27/27 pruebas de Node** y **15/15 pruebas de Chrome**, realizadas con simulación o transporte interceptado. En simulación de la página publicada se comprobaron los ocho sectores, ambas diagonales nuevas, los botones y DETENER al soltar, regresar al centro, perder la captura y pulsar el botón. La prueba de navegador verificó que los `id_comando` salen del catálogo y no están codificados como IDs fijos. Estas pruebas automatizadas no contactaron AWS para efectuar movimientos.
+
+### Evidencia real recibida desde AWS por el ESP8266
+
+El usuario compartió un registro de Monitor Serie del ESP8266 (firmware actualizado en NodeMCU) que muestra `AWS WSS CONECTADO`, `[TLS] Certificado del servidor VALIDADO.` y `estado_actual` ignorado como orden física por seguridad.
+
+El mismo registro contiene eventos `movimiento` recibidos por WSS para las **ocho direcciones**; específicamente, los dos movimientos nuevos aparecen con IDs y códigos correctos:
+
+| Movimiento | ID recibido | Código | Confirmación visible del firmware |
+| --- | ---: | ---: | --- |
+| `AVANZAR_IZQUIERDA` | 16 | 5 | `[GRUA/AWS] AVANZAR + IZQUIERDA - codigo 5` |
+| `RETROCEDER_DERECHA` | 17 | 10 | `[GRUA/AWS] RETROCEDER + DERECHA - codigo 10` |
+| `DETENER` | 1 | 0 | `[GRUA/AWS] DETENIDO - codigo 0` |
+
+En el registro hay 25 órdenes `movimiento` procesadas, cuatro correspondientes a DETENER; `AVANZAR_IZQUIERDA` figura dos veces y `RETROCEDER_DERECHA` tres. El último evento registrado es DETENER. La secuencia incluye otros cambios de dirección y muestra el procesamiento lógico correcto en el ESP8266.
+
+**Alcance y pendientes:** la evidencia acredita la recepción desde el backend por WSS, la validación TLS y el despacho del comando en `GruaRC`, pero **no acredita movimiento, giro o detención física del montacargas**. Tampoco demuestra que cada soltado del joystick haya provocado de manera única su respectivo evento WSS; el retorno a neutral y DETENER se verificaron principalmente con pruebas automatizadas. La DEMO original no se modificó ni se volvió a probar físicamente durante esta ampliación. No se enviaron más órdenes desde esta actualización documental.
 
 ## Protocolo de referencia
 
