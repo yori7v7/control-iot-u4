@@ -52,7 +52,11 @@ El mismo registro contiene eventos `movimiento` recibidos por WSS para las **och
 
 En el registro hay 25 órdenes `movimiento` procesadas, cuatro correspondientes a DETENER; `AVANZAR_IZQUIERDA` figura dos veces y `RETROCEDER_DERECHA` tres. El último evento registrado es DETENER. La secuencia incluye otros cambios de dirección y muestra el procesamiento lógico correcto en el ESP8266.
 
-**Alcance y pendientes:** la evidencia acredita la recepción desde el backend por WSS, la validación TLS y el despacho del comando en `GruaRC`, pero **no acredita movimiento, giro o detención física del montacargas**. Tampoco demuestra que cada soltado del joystick haya provocado de manera única su respectivo evento WSS; el retorno a neutral y DETENER se verificaron principalmente con pruebas automatizadas. La DEMO original no se modificó ni se volvió a probar físicamente durante esta ampliación. No se enviaron más órdenes desde esta actualización documental.
+**Alcance del registro inicial:** la evidencia de Monitor Serie acredita recepción por WSS, validación TLS y despacho en `GruaRC`, pero por sí sola no demostraba movimiento, giro o detención física. Tampoco demuestra que cada soltado del joystick provocara de manera única su evento WSS; el retorno a neutral y DETENER se verificaron además con pruebas automatizadas. La DEMO original no se modificó durante la ampliación.
+
+### Confirmación física posterior del propietario (09/11/2026)
+
+El propietario informó que **realizó todas las pruebas físicas del joystick de ocho direcciones**, incluidas `AVANZAR_IZQUIERDA` (código 5, ID 16) y `RETROCEDER_DERECHA` (código 10, ID 17), y que **los movimientos funcionaron correctamente tanto desde una laptop como desde un teléfono**. Con esta confirmación ya no se considera pendiente la comprobación funcional física de las dos diagonales nuevas. Se conserva separada la evidencia anterior del Monitor Serie, que documenta los comandos y eventos observados; la validación del movimiento físico se registra como **resultado reportado por el propietario**, sin agregar capturas, medidas, horas ni registros no proporcionados. No se realizaron nuevas órdenes AWS ni cambios de firmware durante esta actualización documental.
 
 ## Protocolo de referencia
 
