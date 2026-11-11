@@ -11,6 +11,10 @@ const ESSENTIAL = [
   ...CRITICAL, '#joystick', '#refresh', '#ws-indicator', '#api-indicator', '#rds-indicator',
   '#exit-simulation', '#simulation-banner', '#demo-state',
 ];
+const OFFLINE_ESSENTIAL = [
+  ...ESSENTIAL.filter(selector => !['#exit-simulation', '#simulation-banner'].includes(selector)),
+  '#open-session', '#control-mode',
+];
 const INSPECTORS = ['#activity-toggle', '#demo-detail-toggle', '#vehicle-detail-toggle'];
 
 const viewports = [
@@ -133,7 +137,7 @@ for (const { group, mobile, sizes } of viewports) {
     test.use({ isMobile: mobile, hasTouch: mobile });
 
     for (const [width, height] of sizes) {
-      test(`${width} × ${height} mantiene visibles los controles sin scroll`, async ({ page, baseURL }) => {
+      test(`${width} × ${height} mantiene visibles los controles sin scroll, incluso sin conexión`, async ({ page, baseURL }) => {
         await page.setViewportSize({ width, height });
         const errors = await openSimulation(page, baseURL);
         await auditLayout(page);
@@ -148,6 +152,16 @@ for (const { group, mobile, sizes } of viewports) {
           await expect(page.locator('#last-command')).toHaveText('DETENER · ID 1');
           await auditLayout(page);
         }
+        await page.goto(APP);
+        await expect(page.locator('#api-indicator strong')).toHaveText('No disponible');
+        await expect(page.locator('#control-mode')).toHaveText(/sin conexi[oó]n/i);
+        await expect(page.locator('#direction-buttons button')).toHaveCount(8);
+        await expect(page.locator('#extra-buttons button')).toHaveCount(4);
+        await expect(page.locator('#direction-buttons button:disabled, #extra-buttons button:disabled')).toHaveCount(12);
+        await expect(page.locator('#joystick')).toHaveAttribute('aria-disabled', 'true');
+        await expect(page.locator('#stop')).toBeDisabled();
+        await expect(page.locator('#demo-start')).toBeDisabled();
+        await auditLayout(page, { essential: OFFLINE_ESSENTIAL });
         expect(errors).toEqual([]);
       });
     }

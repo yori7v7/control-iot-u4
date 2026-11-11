@@ -25,7 +25,7 @@ async function start() {
   const indicators = new ConnectionIndicators(document);
   let vehicle = null;
   let catalog = [];
-  let catalogLoaded = false;
+  let catalogVerified = false;
   let refreshing = null;
   let loading = true;
   let wsConnected = false;
@@ -61,7 +61,11 @@ async function start() {
     api,
     onApiState(state) {
       indicators.set('api', state);
-      if (state === 'unavailable') apiWasUnavailable = true;
+      if (state === 'unavailable' && !apiWasUnavailable) {
+        apiWasUnavailable = true;
+        catalogVerified = false;
+        render();
+      }
       if (state === 'available' && apiWasUnavailable) {
         apiWasUnavailable = false;
         void loadCatalog();
@@ -86,11 +90,16 @@ async function start() {
   });
 
   function render() {
+    const catalogReady = catalogVerified && !apiWasUnavailable;
+    const catalogStatus = apiWasUnavailable ? 'Sin conexión'
+      : !catalogReady ? (loading ? 'Esperando catálogo' : 'Catálogo sin verificar')
+        : !catalog.some(command => command.active && command.key !== 'DETENER') ? 'Sin comandos activos' : '';
     view.setVehicle(vehicle, vehicleId, loading);
-    view.setCatalog(catalog, key => commands.request(key), catalogLoaded);
+    view.setCatalog(catalog, key => commands.request(key));
     view.setControl({
       armed: api.hasApiKey, canCommand, canStop: canStop(),
       canClose: canCloseSession(), busy: protectedRequestPending(),
+      catalogReady, catalogStatus,
     });
     view.setCommand(commands.state);
     view.setDemo(demo.state, {
@@ -113,13 +122,12 @@ async function start() {
     ]).then(([vehicleResult, commandsResult, demosResult]) => {
       if (vehicleResult.status === 'fulfilled') vehicle = vehicleResult.value;
       else if (catalogIsInvalid(vehicleResult.reason)) vehicle = null;
-      if (commandsResult.status === 'fulfilled') {
+      catalogVerified = commandsResult.status === 'fulfilled';
+      if (catalogVerified) {
         catalog = commandsResult.value;
-        catalogLoaded = true;
         commands.setCatalog(catalog);
       } else if (catalogIsInvalid(commandsResult.reason)) {
         catalog = [];
-        catalogLoaded = false;
         commands.setCatalog(catalog);
       }
       if (demosResult.status === 'fulfilled') {
