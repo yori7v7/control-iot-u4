@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
 import { createInterface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
-import { CONFIG } from '../js/config.js';
+import { CONFIG } from '../assets/js/config.js';
 
 const APP = new URL('https://yori7v7.github.io/control-iot-u4/');
 const VEHICLE = '/vehiculos/1';
@@ -40,7 +40,7 @@ function allowsPost(path, request) {
 async function serveLocal(route, path) {
   const asset = path.slice(APP.pathname.length) || 'index.html';
   if (!path.startsWith(APP.pathname) || (asset !== 'index.html' &&
-    !/^(?:css|js|assets)\/(?:[a-z\d_-]+\/)*[a-z\d_.-]+\.(?:css|js|svg)$/i.test(asset))) {
+    !/^assets\/(?:[a-z\d_-]+\/)*[a-z\d_.-]+\.(?:css|js|svg)$/i.test(asset))) {
     return route.abort();
   }
 

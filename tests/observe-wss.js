@@ -1,5 +1,5 @@
-import { CONFIG } from '../js/config.js';
-import { WebSocketClient } from '../js/services/WebSocketClient.js';
+import { CONFIG } from '../assets/js/config.js';
+import { WebSocketClient } from '../assets/js/services/WebSocketClient.js';
 
 const MAX_SESSION_MS = 10 * 60 * 1000;
 const HANDSHAKE_TIMEOUT_MS = 12000;
@@ -18,7 +18,7 @@ function selectFields(record, fields) {
 async function observe(simulation) {
   const { vehicleId, wsUrl } = CONFIG;
   const WebSocketImpl = simulation
-    ? (await import('../js/services/simulation.js')).createSimulation().WebSocketImpl
+    ? (await import('../assets/js/services/simulation.js')).createSimulation().WebSocketImpl
     : globalThis.WebSocket;
   const mode = simulation ? 'simulacion' : 'real';
   let opened = false;

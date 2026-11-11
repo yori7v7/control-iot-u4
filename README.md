@@ -55,12 +55,12 @@ Playwright ejecuta Chrome en escritorio y emula los tamaños móviles y la reduc
 
 | Ubicación | Clases y responsabilidades |
 | --- | --- |
-| `js/models/` | `Vehicle`, `Command` y `Demo` validan y encapsulan datos del dominio. `Command` separa el ID REST del código lógico y deriva la clave usada en el control. |
-| `js/services/` | `ApiClient` centraliza Fetch, autenticación, validación, timeouts y errores. `WebSocketClient` mantiene una suscripción de lectura, valida tramas, deduplica y reconecta con espera creciente. `ConnectionService` comprueba API y RDS por separado. |
-| `js/controllers/` | `JoystickController` gestiona Pointer Events, zona neutral, pérdida de captura y teclado. `CommandService` valida el catálogo, serializa los POST y prioriza DETENER. `DemoController` gestiona la selección, ejecución, cancelación y los eventos de la secuencia. |
-| `js/ui/` | `DashboardView` actualiza el DOM sin construir solicitudes HTTP. `ConnectionIndicators` representa los tres estados con texto y color. |
-| `js/app.js` y `js/config.js` | El punto de entrada instancia y conecta los objetos. La configuración contiene URLs, ID y tiempos de espera. |
-| `assets/`, `css/`, `tests/`, `docs/` | Iconos originales, estilos y licencia de Bootstrap, servidor y suites de prueba, auditoría de contratos. |
+| `assets/js/models/` | `Vehicle`, `Command` y `Demo` validan y encapsulan datos del dominio. `Command` separa el ID REST del código lógico y deriva la clave usada en el control. |
+| `assets/js/services/` | `ApiClient` centraliza Fetch, autenticación, validación, timeouts y errores. `WebSocketClient` mantiene una suscripción de lectura, valida tramas, deduplica y reconecta con espera creciente. `ConnectionService` comprueba API y RDS por separado. |
+| `assets/js/controllers/` | `JoystickController` gestiona Pointer Events, zona neutral, pérdida de captura y teclado. `CommandService` valida el catálogo, serializa los POST y prioriza DETENER. `DemoController` gestiona la selección, ejecución, cancelación y los eventos de la secuencia. |
+| `assets/js/ui/` | `DashboardView` actualiza el DOM sin construir solicitudes HTTP. `ConnectionIndicators` representa los tres estados con texto y color. |
+| `assets/js/app.js` y `assets/js/config.js` | El punto de entrada instancia y conecta los objetos. La configuración contiene URLs, ID y tiempos de espera. |
+| `assets/css/`, `assets/`, `tests/`, `docs/` | Iconos originales, estilos y licencia de Bootstrap, servidor y suites de prueba, auditoría de contratos. |
 
 ```text
 Joystick y botones → CommandService ─┐
@@ -126,4 +126,4 @@ La fuente de Pages es **Deploy from a branch**, rama `main`, carpeta **/(root)**
 
 La URL sin parámetros abre en modo real. La simulación se activa mediante `?modo=simulacion`, muestra un aviso y usa únicamente datos de prueba.
 
-Bootstrap 5.3.8 se distribuye como CSS bajo licencia MIT. [Versión oficial](https://getbootstrap.com/docs/5.3/getting-started/download/) · [Licencia incluida](./css/vendor/bootstrap-LICENSE.txt)
+Bootstrap 5.3.8 se distribuye como CSS bajo licencia MIT. [Versión oficial](https://getbootstrap.com/docs/5.3/getting-started/download/) · [Licencia incluida](./assets/css/vendor/bootstrap-LICENSE.txt)

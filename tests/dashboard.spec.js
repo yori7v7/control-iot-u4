@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
-import { CONFIG } from '../js/config.js';
+import { CONFIG } from '../assets/js/config.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;

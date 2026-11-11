@@ -14,4 +14,4 @@ exclude:
   - .sass-cache/
 
 include:
-  - css/vendor
+  - assets/css/vendor

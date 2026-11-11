@@ -26,7 +26,7 @@ createServer(async (request, response) => {
   }
   const asset = pathname.slice(basePath.length) || 'index.html';
   const isPublic = asset === 'index.html' ||
-    /^(?:css|js|assets)\/(?:[a-z\d_-]+\/)*[a-z\d_.-]+\.(?:css|js|svg)$/i.test(asset);
+    /^assets\/(?:[a-z\d_-]+\/)*[a-z\d_.-]+\.(?:css|js|svg)$/i.test(asset);
   if (!pathname.startsWith(basePath) || !isPublic) {
     response.writeHead(404).end();
     return;

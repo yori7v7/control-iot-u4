@@ -228,7 +228,7 @@ test.describe('Cambios durante la operación', () => {
       command: 'La solicitud agotó el tiempo de espera y no se obtuvo confirmación del servidor. Comprueba los indicadores de conectividad.',
     };
     await page.evaluate(async messages => {
-      const { DashboardView } = await import(`${location.pathname}js/ui/DashboardView.js`);
+      const { DashboardView } = await import(`${location.pathname}assets/js/ui/DashboardView.js`);
       const view = new DashboardView(document);
       view.setVehicle({ name: messages.vehicle, model: 'HJ2025-1D', active: true }, 1, false);
       view.setNotice(messages.alert, true);
