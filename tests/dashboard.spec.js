@@ -376,8 +376,10 @@ test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETEN
   await page.goto(APP);
   await enableControl(page);
   await page.getByLabel('Seleccionar DEMO').selectOption('21');
+  await page.locator('#demo-detail-toggle').click();
   await page.getByText(/movimientos programados/i, { exact: false }).first().click();
   await expect(page.locator('#demo-steps-list')).toContainText(/avanzar/i);
+  await page.locator('#demo-detail-close').click();
   expect(fixtures.requests.some(request => request.method === 'GET' && request.path === `${DEMO}/movimientos`)).toBe(true);
   const execute = page.getByRole('button', { name: 'Ejecutar', exact: true });
   const demoState = page.locator('#demo-state');
@@ -445,6 +447,7 @@ test('simulación conserva la DEMO cancelada y actualiza el aviso tras DETENER',
   await expect(page.locator('#demo-progress')).toHaveAttribute('value', '0');
   await expect(page.locator('#demo-select')).toHaveValue('1');
   await expect(page.locator('#demo-start')).toBeEnabled();
+  await page.locator('#demo-detail-toggle').click();
   await page.getByText('Último resultado', { exact: true }).click();
   const summary = page.locator('#demo-last-result-text');
   await expect(summary).toContainText('Cancelación REST · HTTP 200 aceptado.');

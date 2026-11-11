@@ -24,4 +24,6 @@
   <symbol id="diagonal-down" viewBox="0 0 24 24"><path d="M18 6 6 18m9 0H6V9"/></symbol>
   <symbol id="diagonal-up-left" viewBox="0 0 24 24"><path d="M18 18 6 6m0 9V6h9"/></symbol>
   <symbol id="diagonal-down-right" viewBox="0 0 24 24"><path d="m6 6 12 12m0-9v9H9"/></symbol>
+  <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h1m-1 6h1m-1 6h1"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
 </svg>
