@@ -1,18 +1,19 @@
 const DIRECTIONS = {
+  AVANZAR_IZQUIERDA: ['Avanzar e izquierda', 'diagonal-up-left'],
   AVANZAR: ['Avanzar', 'up'],
+  AVANZAR_DERECHA: ['Avanzar y derecha', 'diagonal-up'],
   IZQUIERDA: ['Izquierda', 'left'],
   DERECHA: ['Derecha', 'right'],
+  RETROCEDER_IZQUIERDA: ['Retroceder e izquierda', 'diagonal-down'],
   RETROCEDER: ['Retroceder', 'down'],
+  RETROCEDER_DERECHA: ['Retroceder y derecha', 'diagonal-down-right'],
 };
+const CARDINAL_DIRECTIONS = ['AVANZAR', 'IZQUIERDA', 'DERECHA', 'RETROCEDER'];
 const EXTRAS = {
   LUCES: ['Luces', 'lights'],
   VELOCIDAD: ['Velocidad', 'speed'],
   DEMO_ORIGINAL: ['DEMO original', 'sequence'],
   CLAXON: ['Claxon', 'horn'],
-  AVANZAR_DERECHA: ['Avanzar y derecha', 'diagonal-up'],
-  AVANZAR_IZQUIERDA: ['Avanzar e izquierda', 'diagonal-up-left'],
-  RETROCEDER_IZQUIERDA: ['Retroceder e izquierda', 'diagonal-down'],
-  RETROCEDER_DERECHA: ['Retroceder y derecha', 'diagonal-down-right'],
 };
 const PHASE_LABELS = {
   queued: 'Solicitud en espera.',
@@ -66,17 +67,23 @@ export class DashboardView {
   }
 
   setVehicle(vehicle, vehicleId, loading) {
-    this.#text('vehicle-id', `ID ${String(vehicleId).padStart(2, '0')}`);
+    const id = `ID ${String(vehicleId).padStart(2, '0')}`;
+    this.#text('vehicle-id', id);
+    this.#text('vehicle-detail-id', id);
     const identity = [vehicle?.name, vehicle?.model, vehicle && !vehicle.active ? 'Vehículo inactivo' : null]
-      .filter(Boolean).join(' · ');
-    this.#text('vehicle-name', identity || (loading ? 'Consultando el vehículo y su catálogo…' : 'Nombre del vehículo sin verificar'));
+      .filter(Boolean).join(' · ') || (loading ? 'Consultando el vehículo y su catálogo…' : 'Nombre del vehículo sin verificar');
+    this.#text('vehicle-name', identity);
+    this.#text('vehicle-detail-name', identity);
   }
 
   setNotice(message, bad = false) {
-    const notice = this.element('notice');
-    notice.dataset.tone = bad ? 'bad' : 'idle';
-    notice.hidden = !message;
-    setText(notice, message);
+    for (const id of ['notice', 'notice-detail']) {
+      const notice = this.element(id);
+      notice.dataset.tone = bad ? 'bad' : 'idle';
+      notice.hidden = !message;
+      setText(notice, message);
+    }
+    this.#updateActivityAttention();
   }
 
   setCatalog(catalog, request, loaded) {
@@ -105,6 +112,8 @@ export class DashboardView {
     button.className = 'btn btn-outline-panel';
     button.type = 'button';
     button.dataset.command = key;
+    button.setAttribute('aria-label', label);
+    button.title = label;
     if (icon) {
       const svg = this.#document.createElementNS(SVG, 'svg');
       svg.setAttribute('class', 'icon');
@@ -114,7 +123,10 @@ export class DashboardView {
       svg.append(use);
       button.append(svg);
     }
-    button.append(label);
+    const caption = this.#document.createElement('span');
+    caption.className = 'command-label';
+    caption.textContent = label;
+    button.append(caption);
     button.addEventListener('click', () => request(key));
     return button;
   }
@@ -123,7 +135,9 @@ export class DashboardView {
     const mode = this.element('control-mode');
     setText(mode, canStop ? 'HABILITADO' : 'BLOQUEADO');
     mode.dataset.armed = String(canStop);
-    this.#text('session-label', armed ? 'Sesión de control' : 'Habilitar control');
+    const sessionLabel = armed ? 'Sesión de control' : 'Habilitar control';
+    this.#text('session-label', sessionLabel);
+    this.element('open-session').title = sessionLabel;
     this.#text('session-title', armed ? 'Sesión de control real' : 'Habilitar control real');
     this.#text('save-session', armed ? 'Actualizar clave' : 'Habilitar');
     this.element('save-session').disabled = busy;
@@ -131,7 +145,7 @@ export class DashboardView {
     this.element('clear-session').disabled = !canClose;
     this.element('clear-session-help').hidden = !armed || canClose;
     this.element('stop').disabled = !canStop;
-    this.element('joystick').setAttribute('aria-disabled', String(!Object.keys(DIRECTIONS).some(canCommand)));
+    this.element('joystick').setAttribute('aria-disabled', String(!CARDINAL_DIRECTIONS.some(canCommand)));
     for (const button of this.#document.querySelectorAll('[data-command]')) {
       button.disabled = !canCommand(button.dataset.command);
     }
@@ -145,14 +159,25 @@ export class DashboardView {
   setCommand(state) {
     if (!state) return;
     const { command, phase, message, correlation, ambiguous } = state;
+    this.element('activity-pane').dataset.commandPhase = phase;
+    this.#updateActivityAttention();
     this.#text('last-command', `${command.name} · ID ${command.id}`);
-    this.#text('command-state', [PHASE_LABELS[phase], message].filter(Boolean).join(' '));
+    const status = [PHASE_LABELS[phase], message].filter(Boolean).join(' ');
+    this.#text('command-state', status);
+    this.#text('command-alert', phase === 'error' ? status : '');
     this.element('event-correlation').hidden = phase !== 'accepted';
     this.#text('event-correlation', ambiguous
       ? 'Se observaron varias coincidencias WSS. La relación con la solicitud es indeterminada.'
       : correlation
         ? 'Evento WSS compatible con la respuesta HTTP por comando y marca de tiempo. La coincidencia es orientativa.'
         : 'Sin evento WSS compatible observado para esta solicitud.');
+  }
+
+  #updateActivityAttention() {
+    const notice = this.element('notice');
+    const noticeError = !notice.hidden && notice.dataset.tone === 'bad';
+    const commandError = this.element('activity-pane').dataset.commandPhase === 'error';
+    this.element('activity-toggle').toggleAttribute('data-attention', noticeError || commandError);
   }
 
   setEvent(event) {
@@ -232,8 +257,8 @@ export class DashboardView {
     }
 
     this.#setDemoHttp(httpText);
-    this.element('demo-state').dataset.phase = state.phase;
-    this.#text('demo-state', status);
+    this.#setDemoState(status, state.phase);
+    this.element('demo-stop-warning').hidden = !cancelNote || state.stop?.phase === 'accepted';
     const bar = this.element('demo-progress');
     const expected = state.lastEvent?.id_demo === state.selectedId ? state.steps.length : 0;
     bar.hidden = !state.observedSteps || !expected;
@@ -258,8 +283,8 @@ export class DashboardView {
 
   #showNeutralDemo() {
     this.#setDemoHttp('');
-    this.element('demo-state').dataset.phase = 'idle';
-    this.#text('demo-state', DEMO_IDLE);
+    this.#setDemoState(DEMO_IDLE, 'idle');
+    this.element('demo-stop-warning').hidden = true;
     const bar = this.element('demo-progress');
     bar.hidden = true;
     bar.value = 0;
@@ -286,8 +311,19 @@ export class DashboardView {
   }
 
   #setDemoHttp(text) {
-    this.element('demo-http').hidden = !text;
-    this.#text('demo-http', text);
+    for (const id of ['demo-http', 'demo-http-detail']) {
+      const http = this.element(id);
+      http.hidden = !text;
+      setText(http, text);
+    }
+  }
+
+  #setDemoState(text, phase) {
+    for (const id of ['demo-state', 'demo-status-detail']) {
+      const status = this.element(id);
+      status.dataset.phase = phase;
+      setText(status, text);
+    }
   }
 
   clearForm() {

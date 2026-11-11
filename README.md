@@ -4,7 +4,7 @@ Panel web para operar el vehículo IoT ID 1 de la práctica **Aplicación de con
 
 [Abrir Control IoT en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio del frontend](https://github.com/yori7v7/control-iot-u4)
 
-Versión publicada de ocho direcciones [`e692f9e`](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e). La versión cerrada y entregada originalmente fue [`5f341e6`](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611).
+Premium Dashboard 2.0 parte del estado validado en `e0b4121`. [Estado previo al rediseño](https://github.com/yori7v7/control-iot-u4/commit/e0b4121b028c0e8df91f14238ee1ad7265f05e85) · [Ampliación de ocho direcciones](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e) · [Entrega inicial](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611)
 
 **Autor** · Diego Yorel Castelán Silva, Ingeniería en Sistemas Computacionales  
 **Institución** · Tecnológico Nacional de México — Instituto Tecnológico de Pachuca  
@@ -25,11 +25,31 @@ La [vista local por defecto](http://127.0.0.1:4173/control-iot-u4/) apunta a la 
 ## Uso del panel
 
 1. En modo real, abre **Habilitar control**, introduce la clave administrativa y confirma que comprendes el riesgo. Una orden puede activar el vehículo. Para esta práctica, mantén el microcontrolador desconectado y realiza operaciones de control únicamente con autorización.
-2. Usa el joystick con el dedo, el ratón o las flechas cuando tiene foco. Al volver al centro o soltar se solicita DETENER. Las flechas visibles debajo del joystick envían órdenes individuales y **DETENER** las interrumpe. Las diagonales y otros comandos se habilitan según el catálogo activo.
-3. Selecciona una DEMO y consulta **Movimientos programados**. **Ejecutar** envía la petición al backend y el panel actualiza el avance con los eventos WSS recibidos. **Cancelar** interrumpe la secuencia con su endpoint dedicado. **DETENER** intenta cancelar una DEMO activa conocida antes de enviar la orden de parada.
+2. Usa el joystick con el dedo, el ratón o las flechas cuando tiene foco. Al volver al centro o soltar se solicita DETENER. Los ocho botones de la cruceta envían órdenes individuales y **DETENER** las interrumpe. Las diagonales y otros comandos se habilitan según el catálogo activo.
+3. Selecciona una DEMO y abre **Detalle de DEMO** para consultar **Movimientos programados**. **Ejecutar** envía la petición al backend y el panel actualiza el avance con los eventos WSS recibidos. **Cancelar** interrumpe la secuencia con su endpoint dedicado. **DETENER** intenta cancelar una DEMO activa conocida antes de enviar la orden de parada.
 4. Revisa por separado el resultado REST, el evento WSS y los indicadores de conectividad. Usa **Actualizar conexión y catálogos** para repetir las consultas. Desde **Sesión de control** puedes actualizar la clave o cerrar la sesión cuando no hay órdenes pendientes ni un movimiento manual sin detener.
 
 Al finalizar normalmente o tras aceptar por HTTP un DETENER posterior a la cancelación, el panel conserva el resultado visible unos cuatro segundos. Luego vuelve a «Sin DEMO en ejecución», mantiene la selección y guarda la evidencia disponible en **Último resultado**. Si DETENER falla o agota el plazo, permanece el aviso.
+
+## Premium Dashboard 2.0
+
+La consola de grafito y rojo reúne el joystick circular de ocho direcciones, una cruceta de botones y los comandos auxiliares. La cabecera mantiene **DETENER** junto a la sesión y la barra muestra WSS, API y RDS por separado. El rediseño conserva los IDs dinámicos del catálogo, la prioridad de DETENER y la lógica de los controladores y transportes. La simulación local sigue funcionando sin red.
+
+- En vertical con poca altura, joystick y cruceta comparten una fila. Con más altura, el joystick ocupa una fila propia y la cruceta comparte espacio con los comandos auxiliares.
+- En horizontal compacto, el control manual ocupa la zona izquierda y la DEMO la derecha. En escritorio, la actividad acompaña a la DEMO y el joystick dispone de mayor espacio.
+- Los paneles emergentes de actividad, DEMO y vehículo conservan los mensajes completos, la correlación REST/WSS, los pasos, el último resultado y los créditos. Los estados de operación y los avisos importantes se señalan en la vista principal.
+- En teléfonos verticales, **Actividad** señala los errores sin desplazar los controles. En horizontal compacto, los avisos de conexión comparten la barra de indicadores. El aviso **Pulsa DETENER** aparece junto a DEMO mientras está pendiente una parada posterior a la cancelación.
+- El layout reserva las áreas seguras del navegador. Los paneles de detalle y el cuerpo del diálogo de sesión pueden desplazarse internamente si el contenido crece. La acción **Volver** permanece en el pie del diálogo. Fuera de la matriz, un viewport muy reducido o con zoom puede requerir desplazamiento para conservar la legibilidad y los controles táctiles.
+
+La validación de Premium Dashboard 2.0 aprobó **27 pruebas de Node y 38 de Chrome**. La suite responsive verificó cero desplazamiento horizontal y vertical, ausencia de solapamientos y áreas de al menos 44 × 44 px CSS en los botones de movimiento, DETENER y controles de DEMO de los 18 tamaños siguientes.
+
+| Grupo | Viewports de prueba en px CSS |
+| --- | --- |
+| Teléfonos en vertical | 320 × 568, 360 × 640, 375 × 667, 390 × 844, 414 × 896, 430 × 932 |
+| Teléfonos en horizontal | 568 × 320, 640 × 360, 667 × 375, 740 × 360, 844 × 390, 896 × 414, 932 × 430 |
+| Tabletas y escritorio | 768 × 1024, 1024 × 768, 1280 × 720, 1366 × 768, 1920 × 1080 |
+
+Playwright ejecuta Chrome en escritorio y emula los tamaños móviles y la reducción de altura al abrir el teclado. Las particularidades del teclado virtual, las barras del navegador y las áreas seguras dependen del dispositivo y requieren comprobación en un teléfono físico.
 
 ## Arquitectura POO
 
@@ -96,7 +116,9 @@ El joystick interpreta ocho sectores, con cuatro movimientos cardinales y cuatro
 | ↖ | `AVANZAR_IZQUIERDA` | **16** | **5** |
 | Centro | `DETENER` | 1 | 0 |
 
-El código usa IDs del catálogo leído de AWS, no IDs de prueba fijos; los dos comandos nuevos se añadieron a RDS y constan activos. La versión pública está en `main`, commit `e692f9e`, con despliegue [GitHub Pages exitoso](https://github.com/yori7v7/control-iot-u4/actions/runs/42723870488). Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepción y despacho WSS de las ocho direcciones, incluidas las nuevas, y DETENER. **Actualización posterior (09/11/2026):** el propietario confirmó que completó las pruebas físicas de los movimientos del joystick, incluidas las dos diagonales nuevas, y que funcionaron correctamente tanto desde laptop como desde teléfono. Esta confirmación es testimonial y complementa la evidencia previa de WSS/Monitor Serie; no se adjuntó una nueva grabación del movimiento físico. Véase [validación de la ampliación](./docs/validacion-funcional.md#ampliacion-posterior-joystick-de-ocho-direcciones-09112026).
+El código usa IDs del catálogo leído de AWS, no IDs de prueba fijos; los dos comandos nuevos se añadieron a RDS y constan activos. La ampliación se publicó desde `main` con el commit `e692f9e`. [Despliegue de la ampliación en GitHub Pages](https://github.com/yori7v7/control-iot-u4/actions/runs/42723870488)
+
+Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepción y despacho WSS de las ocho direcciones, incluidas las nuevas, y DETENER. **Actualización posterior (09/11/2026):** el propietario confirmó que completó las pruebas físicas de los movimientos del joystick, incluidas las dos diagonales nuevas, y que funcionaron correctamente tanto desde laptop como desde teléfono. Esta confirmación es testimonial y complementa la evidencia previa de WSS/Monitor Serie; no se adjuntó una nueva grabación del movimiento físico. Véase [validación de la ampliación](./docs/validacion-funcional.md#ampliacion-posterior-joystick-de-ocho-direcciones-09112026).
 
 ## Publicación en GitHub Pages
 
