@@ -7,14 +7,26 @@ const SIMULATION = `${APP}?modo=simulacion`;
 const KEY = 'playwright-fixture-only';
 const INVALID_KEY = 'playwright-invalid-fixture-only';
 const VEHICLE = '/vehiculos/1';
+const CATALOG = `${VEHICLE}/comandos`;
 const DEMO = `${VEHICLE}/demos/21`;
 const MOVEMENT = `${VEHICLE}/movimientos`;
+const COMMAND_BUTTONS = '#direction-buttons button, #extra-buttons button';
 const commandCatalog = [
   [11, 'DETENER', 0, true], [22, 'AVANZAR', 1, true], [44, 'IZQUIERDA', 4, true],
   [66, 'DERECHA', 8, true], [88, 'LUCES', 16, true], [99, 'VELOCIDAD', 32, false],
 ].map(([id_comando, nombre, codigo, activo]) => ({
   id_comando, id_vehiculo: 1, nombre, codigo, activo, descripcion: null,
 }));
+const fullCatalog = [
+  ...commandCatalog.map(command => ({ ...command, activo: true })),
+  ...[
+    [302, 'RETROCEDER', 2], [306, 'RETROCEDER_IZQUIERDA', 6],
+    [309, 'AVANZAR_DERECHA', 9], [405, 'AVANZAR_IZQUIERDA', 5],
+    [410, 'RETROCEDER_DERECHA', 10], [564, 'DEMO_ORIGINAL', 64], [628, 'CLAXON', 128],
+  ].map(([id_comando, nombre, codigo]) => ({
+    id_comando, id_vehiculo: 1, nombre, codigo, activo: true, descripcion: null,
+  })),
+];
 const step = {
   id_demo_movimiento: 51, orden: 1, id_comando: 22, comando: 'AVANZAR', codigo: 1,
   duracion_ms: 600, pausa_ms: 150,
@@ -26,8 +38,9 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
   const sockets = [];
   const sentToSocket = [];
   const fixtures = {
-    requests, posts, sockets, sentToSocket, apiAvailable: true, rdsAvailable: true,
-    socketAvailable: true, stopStatus: null, publishMovement: true,
+    requests, posts, sockets, sentToSocket, catalog, reachable: true,
+    apiAvailable: true, rdsAvailable: true, catalogAvailable: true,
+    socketAvailable: true, stopStatus: null, publishMovement: true, beforeCatalogResponse: async () => {},
     beforeMovementResponse: async () => {}, beforeDemoStartResponse: async () => {},
     beforeDemoCancelResponse: async () => {},
   };
@@ -47,7 +60,7 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
   await page.routeWebSocket('**/*', socket => {
     sockets.push(socket);
     socket.onMessage(message => sentToSocket.push(message));
-    if (!serve || !fixtures.socketAvailable || socket.url() !== CONFIG.wsUrl) {
+    if (!serve || !fixtures.reachable || !fixtures.socketAvailable || socket.url() !== CONFIG.wsUrl) {
       socket.close({ code: 1008, reason: 'Unexpected test connection' });
       return;
     }
@@ -61,7 +74,7 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
     const method = request.method();
     const headers = request.headers();
     requests.push({ method, path, headers });
-    if (!serve) return route.abort();
+    if (!serve || !fixtures.reachable) return route.abort();
     const cors = {
       'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS',
       'access-control-allow-headers': 'Content-Type, X-API-Key',
@@ -78,7 +91,10 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
         id_vehiculo: 1, nombre: 'Vehículo de prueba REST', modelo: null, descripcion: null,
         microcontrolador: null, fecha_registro: null, activo: true,
       });
-      if (path === `${VEHICLE}/comandos`) return json(catalog);
+      if (path === CATALOG) {
+        await fixtures.beforeCatalogResponse();
+        return fixtures.catalogAvailable ? json(fixtures.catalog) : route.abort();
+      }
       if (path === `${VEHICLE}/demos`) return json([{
         id_demo: 21, id_vehiculo: 1, nombre: 'Circuito de prueba', descripcion: null, activo: true,
       }]);
@@ -90,7 +106,7 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
       posts.push({ path, body, key });
       if (key !== KEY) return json({ detail: `Texto remoto deliberadamente ignorado: ${key}` }, 403);
       if (path === MOVEMENT) {
-        const command = catalog.find(item => item.id_comando === body?.id_comando && item.activo);
+        const command = fixtures.catalog.find(item => item.id_comando === body?.id_comando && item.activo);
         if (!command) return json({ detail: 'Comando de prueba inexistente' }, 404);
         if (command.nombre === 'DETENER' && fixtures.stopStatus) {
           return json({ detail: 'Fallo de prueba al detener' }, fixtures.stopStatus);
@@ -130,6 +146,21 @@ async function enableControl(page, key = KEY) {
   await expect(dialog).toBeHidden();
 }
 
+async function expectBlockedCommands(page, buttons = page.locator(COMMAND_BUTTONS), count = 12) {
+  const lastCommand = page.locator('#last-command');
+  const previousCommand = await lastCommand.textContent();
+  await expect(buttons).toHaveCount(count);
+  for (const button of await buttons.all()) {
+    await expect(button).toBeVisible();
+    await expect(button).toBeDisabled();
+  }
+  // A synthetic event bypasses the browser's native disabled click suppression.
+  await buttons.evaluateAll(elements => {
+    for (const element of elements) element.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+  await expect(lastCommand).toHaveText(previousCommand);
+}
+
 async function assertAccessible(page) {
   await page.evaluate(axe.source);
   const violations = await page.evaluate(async () => {
@@ -161,6 +192,98 @@ async function startPointer(page) {
   await page.mouse.move(x, y - travel);
   return { x, y, travel };
 }
+
+test('los doce botones permanecen bloqueados mientras carga y con un catálogo válido vacío', async ({ page }) => {
+  const pending = Promise.withResolvers();
+  const fixtures = await interceptBackend(page, { catalog: [] });
+  fixtures.beforeCatalogResponse = () => pending.promise;
+  try {
+    await page.goto(APP);
+    await expect.poll(() => fixtures.requests.some(request => request.path === CATALOG)).toBe(true);
+    await expect(page.locator('#direction-buttons button')).toHaveCount(8);
+    await expect(page.locator('#extra-buttons button')).toHaveCount(4);
+    const keys = await page.locator(COMMAND_BUTTONS).evaluateAll(elements =>
+      elements.map(element => element.dataset.command).sort());
+    expect(keys).toEqual(fullCatalog.map(command => command.nombre).filter(key => key !== 'DETENER').sort());
+    await expect(page.locator('#control-mode')).toHaveText(/esperando cat[aá]logo/i);
+    await expectBlockedCommands(page);
+  } finally {
+    pending.resolve();
+  }
+  await expect(page.locator('#control-mode')).toHaveText(/sin comandos activos/i);
+  await expect(page.locator('#notice-detail')).toContainText('DETENER no está activo');
+  await enableControl(page);
+  await expectBlockedCommands(page);
+  await expect(page.locator('#stop')).toBeDisabled();
+  expect(fixtures.requests.filter(request => request.method === 'POST')).toEqual([]);
+});
+
+test('recupera el catálogo dinámico y bloquea los botones sin conexión, inactivos o ausentes', async ({ page }) => {
+  const fixtures = await interceptBackend(page, { catalog: fullCatalog });
+  const buttons = page.locator(COMMAND_BUTTONS);
+  const enabled = page.locator('#direction-buttons button:enabled, #extra-buttons button:enabled');
+  const refresh = page.locator('#refresh');
+  const mode = page.locator('#control-mode');
+  const api = page.locator('#api-indicator strong');
+  const left = page.locator('[data-command="AVANZAR_IZQUIERDA"]');
+  fixtures.reachable = false;
+  await page.goto(APP);
+  await expect(mode).toHaveText(/sin conexi[oó]n/i);
+  await expect(buttons).toHaveCount(12);
+  await expectBlockedCommands(page);
+
+  fixtures.reachable = true;
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
+  await expect(api).toHaveText('Disponible');
+  await expectBlockedCommands(page);
+  await enableControl(page);
+  await expect(enabled).toHaveCount(12);
+  await left.click();
+  await expect(page.locator('#last-command')).toHaveText('AVANZAR_IZQUIERDA · ID 405');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+
+  fixtures.catalogAvailable = false;
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
+  await expect(api).toHaveText('Disponible');
+  await expect(mode).toHaveText(/cat[aá]logo sin verificar/i);
+  await expectBlockedCommands(page);
+
+  fixtures.catalogAvailable = true;
+  fixtures.catalog = fullCatalog
+    .filter(command => !['RETROCEDER_DERECHA', 'VELOCIDAD'].includes(command.nombre))
+    .map(command => ['AVANZAR_IZQUIERDA', 'CLAXON'].includes(command.nombre) ? { ...command, activo: false }
+      : command.nombre === 'LUCES' ? { ...command, id_comando: 771 } : command);
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
+  await expect(buttons).toHaveCount(12);
+  await expect(enabled).toHaveCount(8);
+  const unavailable = page.locator('[data-command="AVANZAR_IZQUIERDA"], [data-command="RETROCEDER_DERECHA"], [data-command="VELOCIDAD"], [data-command="CLAXON"]');
+  await expectBlockedCommands(page, unavailable, 4);
+  await page.locator('[data-command="LUCES"]').click();
+  await expect(page.locator('#last-command')).toHaveText('LUCES · ID 771');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+
+  fixtures.reachable = false;
+  await refresh.click();
+  await expect(refresh).toBeEnabled();
+  await expect(mode).toHaveText(/sin conexi[oó]n/i);
+  await expectBlockedCommands(page);
+  expect(fixtures.requests.filter(request => request.method === 'POST')).toHaveLength(2);
+
+  fixtures.reachable = true;
+  fixtures.catalog = fullCatalog;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(api).toHaveText('Disponible');
+  await expect(enabled).toHaveCount(12);
+  await page.locator('#stop').click();
+  await expect(page.locator('#last-command')).toHaveText('DETENER · ID 11');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  expect(fixtures.posts.map(({ body }) => body.id_comando)).toEqual([405, 771, 11]);
+  expect(fixtures.requests.filter(request => request.method === 'POST')).toHaveLength(3);
+  expect(fixtures.sentToSocket).toEqual([]);
+});
 
 test('carga recursos en el subdirectorio y opera por teclado en simulación sin tráfico a AWS', async ({ page, request }) => {
   const fixtures = await interceptBackend(page, { serve: false });
@@ -232,7 +355,7 @@ test('aplica la clave solo a POST, distingue HTTP y WSS y descarta la credencial
   await expect(page.locator('#vehicle-name')).toHaveText(/vehículo de prueba REST/i);
   const advance = page.getByRole('button', { name: /^avanzar$/i });
   await expect(advance).toBeDisabled();
-  await expect(page.getByRole('button', { name: /^velocidad$/i })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^velocidad$/i })).toBeDisabled();
   await page.locator('#open-session').click();
   const dialog = page.getByRole('dialog');
   await assertAccessible(page);

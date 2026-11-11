@@ -256,6 +256,14 @@ body {
   white-space: nowrap;
 }
 .mode-label[data-armed="true"] { border-color: #795261; background: #3e2330; color: #ffd0d5; }
+.mode-label[data-catalog-status] {
+  min-width: 0;
+  border-color: var(--control-edge);
+  background: var(--metal);
+  color: var(--muted);
+  text-align: center;
+  white-space: normal;
+}
 
 .drive-body {
   display: grid;

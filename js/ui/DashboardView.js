@@ -86,31 +86,31 @@ export class DashboardView {
     this.#updateActivityAttention();
   }
 
-  setCatalog(catalog, request, loaded) {
+  setCatalog(catalog, request) {
     if (catalog === this.#catalog) return;
     this.#catalog = catalog;
     const directions = this.element('direction-buttons');
     const extras = this.element('extra-buttons');
     directions.replaceChildren();
     extras.replaceChildren();
-    const active = new Map(catalog.filter(command => command.active).map(command => [command.key, command]));
     for (const [key, [label, icon]] of Object.entries(DIRECTIONS)) {
-      if (active.has(key)) directions.append(this.#commandButton(key, label, request, icon));
+      directions.append(this.#commandButton(key, label, request, icon));
     }
-    for (const command of active.values()) {
-      if (command.key !== 'DETENER' && !Object.hasOwn(DIRECTIONS, command.key)) {
-        const [label, icon] = EXTRAS[command.key] ?? [command.name];
-        extras.append(this.#commandButton(command.key, label, request, icon));
+    for (const [key, [label, icon]] of Object.entries(EXTRAS)) {
+      extras.append(this.#commandButton(key, label, request, icon));
+    }
+    for (const { key, name, active } of catalog) {
+      if (active && key !== 'DETENER' && !Object.hasOwn(DIRECTIONS, key) && !Object.hasOwn(EXTRAS, key)) {
+        extras.append(this.#commandButton(key, name, request));
       }
     }
-    this.element('no-extras').hidden = extras.childElementCount > 0;
-    this.#text('no-extras', loaded ? 'No hay comandos adicionales activos.' : 'Catálogo sin verificar.');
   }
 
   #commandButton(key, label, request, icon) {
     const button = this.#document.createElement('button');
     button.className = 'btn btn-outline-panel';
     button.type = 'button';
+    button.disabled = true;
     button.dataset.command = key;
     button.setAttribute('aria-label', label);
     button.title = label;
@@ -127,14 +127,17 @@ export class DashboardView {
     caption.className = 'command-label';
     caption.textContent = label;
     button.append(caption);
-    button.addEventListener('click', () => request(key));
+    button.addEventListener('click', () => {
+      if (!button.disabled) request(key);
+    });
     return button;
   }
 
-  setControl({ armed, canCommand, canStop, canClose, busy }) {
+  setControl({ armed, canCommand, canStop, canClose, busy, catalogReady, catalogStatus }) {
     const mode = this.element('control-mode');
-    setText(mode, canStop ? 'HABILITADO' : 'BLOQUEADO');
+    setText(mode, catalogStatus || (canStop ? 'HABILITADO' : 'BLOQUEADO'));
     mode.dataset.armed = String(canStop);
+    mode.toggleAttribute('data-catalog-status', Boolean(catalogStatus));
     const sessionLabel = armed ? 'Sesión de control' : 'Habilitar control';
     this.#text('session-label', sessionLabel);
     this.element('open-session').title = sessionLabel;
@@ -147,7 +150,7 @@ export class DashboardView {
     this.element('stop').disabled = !canStop;
     this.element('joystick').setAttribute('aria-disabled', String(!CARDINAL_DIRECTIONS.some(canCommand)));
     for (const button of this.#document.querySelectorAll('[data-command]')) {
-      button.disabled = !canCommand(button.dataset.command);
+      button.disabled = !catalogReady || !canCommand(button.dataset.command);
     }
   }
 
