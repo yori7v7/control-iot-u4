@@ -157,6 +157,49 @@ test('el paso y la cancelación de DEMO reconcilian estado sin consultar ni agre
   assert.equal(monitor.state.history.value, original);
 });
 
+test('el indicador DEMO conserva las señales WSS entre vistas sin leer historial fuera de MONITOREO', async t => {
+  const { monitor, calls } = monitorFixture(t);
+  monitor.setConnected(true);
+  monitor.handleEvent({ ...movement, comando: 'DEMO_ORIGINAL', codigo: 64 });
+  assert.equal(monitor.state.demo, null);
+
+  monitor.handleEvent({ ...demoStep, tipo_evento: 'demo_inicio', timestamp: `${time}Z` });
+  monitor.handleEvent({ ...demoStep, orden: 2 });
+  monitor.handleEvent(demoStep);
+  assert.equal(monitor.state.demo.phase, 'running');
+  assert.equal(monitor.state.demo.step.orden, 2);
+  assert.equal(calls.persisted.length, 0);
+  assert.equal(calls.history.length, 0);
+
+  await monitor.activate();
+  monitor.deactivate();
+  monitor.handleEvent({ ...demoStep, tipo_evento: 'demo_fin', timestamp: '2026-11-11T18:01:48Z' });
+  monitor.handleEvent({ ...demoStep, tipo_evento: 'demo_inicio', timestamp: `${time}Z` });
+  await monitor.activate();
+  assert.equal(monitor.state.demo.phase, 'finished');
+  assert.equal(monitor.state.demo.step.orden, 2);
+  assert.equal(calls.history.length, 2);
+});
+
+test('un paso aislado o un estado inicial tras reconexión no prueban una DEMO en ejecución', async t => {
+  const { monitor } = monitorFixture(t);
+  monitor.setConnected(true);
+  monitor.handleEvent(demoStep);
+  assert.equal(monitor.state.demo.phase, 'observed');
+  monitor.setConnected(false);
+  assert.equal(monitor.state.demo.phase, 'unknown');
+
+  monitor.setConnected(true);
+  monitor.handleEvent({ ...movement, tipo_evento: 'estado_actual' });
+  assert.equal(monitor.state.demo.phase, 'unknown');
+  monitor.handleEvent({ ...demoStep, tipo_evento: 'demo_cancelada', timestamp: `${time}Z` });
+  assert.equal(monitor.state.demo.phase, 'cancelled');
+  monitor.handleEvent({ ...demoStep, tipo_evento: 'demo_inicio', timestamp: '2026-11-11T18:01:49Z' });
+  assert.deepEqual(monitor.state.demo, { id: demoStep.id_demo, phase: 'running', step: null });
+  monitor.handleEvent({ ...demoStep, tipo_evento: 'demo_error', timestamp: '2026-11-11T18:01:50Z' });
+  assert.equal(monitor.state.demo.phase, 'error');
+});
+
 test('WSS compartido filtra duplicados y otros vehículos y reconcilia al reconectar', async t => {
   const { monitor, calls, changes } = monitorFixture(t);
   const sockets = [];

@@ -1,5 +1,17 @@
 # Propuesta de acceso público limitado a CONTROL
 
+## Integración de la etapa 5.3
+
+El frontend consume los contratos aprobados del backend `37e08f9a5f6183738705805270490e67c322424d`. En operación normal consulta disponibilidad y valida la clave del propietario con `GET /admin/vehiculos/1/control-publico`. Si un backend anterior devuelve 404 en esa ruta, la autorización del control existente se comprueba en cada POST protegido. Con el modo público cerrado, la consola informa que los turnos de invitado aún no están disponibles. [Contrato backend 5.2](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/37e08f9a5f6183738705805270490e67c322424d/docs/control_publico_temporal.md)
+
+El modo `?modo=turnos` se habilita en loopback. `npm run test:browser -- public-control.spec.js` prueba los roles y los endpoints del mismo origen mediante respuestas interceptadas con una clave ficticia. El catálogo y WSS de la consola usan la simulación local. El token Bearer vive en memoria y se usa exclusivamente en las rutas del turno propio. El invitado tiene ocho direcciones y DETENER, y la ocupación y los plazos se concilian mediante GET. Las respuestas HTTP 202 acreditan la admisión simulada de la operación.
+
+Validación local de la etapa 5.3 con 52 pruebas Node y 76 de Chrome. El cliente JavaScript completó 34 solicitudes contra FastAPI 5.2 en ASGI aislado con SQLite temporal.
+
+El acceso físico para invitados sigue desactivado. Quedan pendientes el canal autenticado del dispositivo, el arbitraje entre operador e invitado, los acuses de salida y la comprobación física de la parada y su latencia.
+
+## Propuesta inicial
+
 Propuesta para una fase posterior. MONITOREO ya abre sin clave y CONTROL todavía exige `X-API-Key` para las órdenes. El modo propuesto permitiría que cualquier visitante solicite un turno sin escribir una clave. **Un modo verdaderamente público permite que desconocidos intenten controlar el vehículo, incluso con límites de seguridad.** La decisión de habilitarlo corresponde al propietario y exige evaluar el lugar de operación, el acceso físico y el riesgo para personas y objetos.
 
 ## Auditoría de autorización

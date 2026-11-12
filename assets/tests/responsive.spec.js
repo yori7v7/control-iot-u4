@@ -5,6 +5,7 @@ import { viewports } from './viewport-matrix.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;
+const PUBLIC_SIMULATION = `${APP}?modo=turnos`;
 const CRITICAL = [
   '#stop', '#direction-buttons [data-command]', '#extra-buttons [data-command]',
   '#demo-select', '#demo-start', '#demo-cancel',
@@ -17,6 +18,7 @@ const OFFLINE_ESSENTIAL = [
   ...ESSENTIAL.filter(selector => !['#exit-simulation', '#simulation-banner'].includes(selector)),
   '#open-session', '#control-mode',
 ];
+const PUBLIC_ESSENTIAL = [...OFFLINE_ESSENTIAL, '#simulation-banner', '#open-public-control'];
 const INSPECTORS = ['#demo-detail-toggle', '#vehicle-detail-toggle', '#views-toggle'];
 
 async function isolate(page, baseURL) {
@@ -39,6 +41,39 @@ async function openSimulation(page, baseURL) {
   await expect(page.locator('#stop')).toBeEnabled();
   await expect(page.locator('#demo-select')).toBeEnabled();
   return errors;
+}
+
+async function auditPublicControl(page, baseURL) {
+  const origin = new URL(baseURL).origin;
+  await page.route(`${origin}/publico/vehiculos/1/control`, route => route.fulfill({ json: {
+    id_vehiculo: 1, habilitado: true, estado: 'disponible',
+    vence_ventana_en: new Date(Date.now() + 1_200_000).toISOString(),
+    hora_servidor: new Date().toISOString(), revision: 1, simulado: true,
+  } }));
+  await page.goto(PUBLIC_SIMULATION);
+  await expect(page.locator('#control-mode')).toHaveText('Turno libre');
+  await expect(page.locator('#direction-buttons button:disabled, #extra-buttons button:disabled')).toHaveCount(12);
+  await expect(page.locator('#demo-start')).toBeDisabled();
+  await auditLayout(page, { essential: PUBLIC_ESSENTIAL });
+
+  await page.locator('#open-public-control').click();
+  await expect(page.locator('#public-control-role')).toHaveText('Observador');
+  await expect(page.locator('#public-take')).toBeEnabled();
+  await expect(page.locator('#public-window-time')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const { clientWidth, clientHeight, scrollWidth, scrollHeight } = document.documentElement;
+    const panel = document.getElementById('public-control').getBoundingClientRect();
+    const stop = document.getElementById('stop').getBoundingClientRect();
+    return panel.left >= 0 && panel.top >= 0 && panel.right <= clientWidth && panel.bottom <= clientHeight &&
+      scrollWidth === clientWidth && scrollHeight === clientHeight && panel.top >= stop.bottom;
+  })).toBe(true);
+  if ([320, 1920].includes(page.viewportSize().width)) {
+    await page.evaluate(axe.source);
+    await auditAccessibility(page);
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#public-control')).not.toBeVisible();
+  await expect(page.locator('#open-public-control')).toBeFocused();
 }
 
 async function auditAccessibility(page) {
@@ -151,6 +186,7 @@ for (const { group, mobile, sizes } of viewports) {
         await expect(page.locator('#stop')).toBeDisabled();
         await expect(page.locator('#demo-start')).toBeDisabled();
         await auditLayout(page, { essential: OFFLINE_ESSENTIAL });
+        await auditPublicControl(page, baseURL);
         expect(errors).toEqual([]);
       });
     }

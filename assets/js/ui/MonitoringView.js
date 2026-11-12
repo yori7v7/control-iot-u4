@@ -17,6 +17,11 @@ function eventSource(event) {
   return 'Estado inicial · WSS';
 }
 
+const DEMO_LABELS = Object.freeze({
+  running: 'En ejecución', observed: 'Paso observado', finished: 'Finalización observada',
+  cancelled: 'Cancelación observada', error: 'Error observado', unknown: 'Estado sin confirmar',
+});
+
 function pagesFor(rows, capacity) {
   const pages = [];
   let page = [];
@@ -92,7 +97,16 @@ export class MonitoringView {
     this.#element('monitor-refresh').disabled = true;
   }
 
-  render({ persisted, history, event, preview, connected }) {
+  renderDemo(demo, event = null) {
+    const indicator = this.#element('monitor-demo');
+    indicator.hidden = !demo;
+    indicator.dataset.phase = demo?.phase ?? '';
+    const movement = formatCommandName(demo?.step?.comando);
+    setText(indicator, demo ? ['DEMO programada', DEMO_LABELS[demo.phase], movement].filter(Boolean).join(' · ') : '');
+    this.#element('monitor-event').hidden = Boolean(demo && (!event || demo.step === event));
+  }
+
+  render({ persisted, history, event, preview, connected, demo }) {
     this.#persistedName = persisted.value?.vehiculo ?? preview?.estado?.vehiculo ?? null;
     this.#showVehicleName();
 
@@ -110,6 +124,7 @@ export class MonitoringView {
     if (connected) this.#hadWss = true;
     this.#element('monitor-realtime').dataset.connected = String(connected);
     this.#text('monitor-realtime', connected ? 'WSS en vivo' : this.#hadWss ? 'Reconectando WSS' : 'Esperando WSS');
+    this.renderDemo(demo, event);
     this.#showHistory(history);
   }
 

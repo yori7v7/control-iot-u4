@@ -10,6 +10,8 @@ const VEHICLE = '/vehiculos/1';
 const CATALOG = `${VEHICLE}/comandos`;
 const DEMO = `${VEHICLE}/demos/21`;
 const MOVEMENT = `${VEHICLE}/movimientos`;
+const PUBLIC_STATUS = '/publico/vehiculos/1/control';
+const ADMIN_STATUS = '/admin/vehiculos/1/control-publico';
 const COMMAND_BUTTONS = '#direction-buttons button, #extra-buttons button';
 const commandCatalog = [
   [11, 'DETENER', 0, true], [22, 'AVANZAR', 1, true], [44, 'IZQUIERDA', 4, true],
@@ -32,7 +34,7 @@ const step = {
   duracion_ms: 600, pausa_ms: 150,
 };
 
-async function interceptBackend(page, { serve = true, catalog = commandCatalog } = {}) {
+async function interceptBackend(page, { serve = true, catalog = commandCatalog, control53 = false } = {}) {
   const requests = [];
   const posts = [];
   const sockets = [];
@@ -82,6 +84,16 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
     const json = (body, status = 200) => route.fulfill({ json: body, status, headers: cors });
     if (method === 'OPTIONS') return route.fulfill({ status: 200, headers: cors });
     if (method === 'GET') {
+      if (control53 && [PUBLIC_STATUS, ADMIN_STATUS].includes(path)) {
+        const state = {
+          id_vehiculo: 1, habilitado: false, estado: 'cerrado', vence_ventana_en: null,
+          hora_servidor: new Date().toISOString(), revision: 0, simulado: false,
+        };
+        if (path === PUBLIC_STATUS) return json(state);
+        if (headers['x-api-key'] !== KEY) return json({ detail: 'Clave de prueba rechazada.' }, 403);
+        return json({ ...state, inicio_ventana_en: null, id_turno_auditoria: null,
+          turno_vence_en: null, parada: null, motivo_bloqueo: null });
+      }
       if (path === '/') return fixtures.apiAvailable
         ? json({ status: 'ok', service: 'Playwright fixture', environment: 'production' }) : route.abort();
       if (path === '/health/database') return fixtures.rdsAvailable
@@ -359,7 +371,7 @@ test.describe('móvil táctil', () => {
   });
 });
 
-test('aplica la clave solo a POST, distingue HTTP y WSS y descarta la credencial al recargar', async ({ page }) => {
+test('conserva la autenticación legada cuando GET A no existe, distingue HTTP y WSS y descarta la clave al recargar', async ({ page }) => {
   const fixtures = await interceptBackend(page);
   await page.goto(APP);
   await expect(page.locator('#simulation-banner')).toBeHidden();
@@ -396,13 +408,34 @@ test('aplica la clave solo a POST, distingue HTTP y WSS y descarta la credencial
     { path: MOVEMENT, body: { id_comando: 22 }, key: INVALID_KEY },
     { path: MOVEMENT, body: { id_comando: 22 }, key: KEY },
   ]);
-  expect(fixtures.requests.filter(request => request.method === 'GET').every(request =>
+  expect(fixtures.requests.filter(request => request.method === 'GET' && request.path !== ADMIN_STATUS).every(request =>
     !Object.hasOwn(request.headers, 'x-api-key'))).toBe(true);
   expect(fixtures.sentToSocket).toEqual([]);
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length, document.cookie])).toEqual([0, 0, '']);
   await page.reload();
   await expect(advance).toBeDisabled();
   await expect(page.locator('#api-key')).toHaveValue('');
+});
+
+test('valida la clave con GET A y conserva el CONTROL autenticado cuando los turnos están deshabilitados', async ({ page }) => {
+  const fixtures = await interceptBackend(page, { control53: true });
+  await page.goto(APP);
+  const advance = page.getByRole('button', { name: /^avanzar$/i });
+  await page.locator('#open-public-control').click();
+  await expect(page.locator('#public-control-status')).toContainText(/no están disponibles/i);
+  await expect(page.locator('#public-take')).toBeHidden();
+  await page.getByRole('button', { name: 'Cerrar turnos de control' }).click();
+  await enableControl(page, INVALID_KEY);
+  await expect.poll(() => fixtures.requests.some(request => request.path === ADMIN_STATUS && request.headers['x-api-key'] === INVALID_KEY)).toBe(true);
+  await expect(advance).toBeDisabled();
+  await advance.dispatchEvent('click');
+  expect(fixtures.posts).toEqual([]);
+  await enableControl(page, KEY);
+  await advance.click();
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  expect(fixtures.posts).toEqual([{ path: MOVEMENT, body: { id_comando: 22 }, key: KEY }]);
+  expect(fixtures.requests.filter(request => request.path === PUBLIC_STATUS).every(request =>
+    !request.headers['x-api-key'] && !request.headers.authorization)).toBe(true);
 });
 
 test('el joystick deduplica dirección y DETENER reemplaza una orden pendiente', async ({ page }) => {

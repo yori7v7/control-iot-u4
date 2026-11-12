@@ -41,6 +41,11 @@ export class ApiError extends Error {
   }
 }
 
+// Fetch accepts byte strings for header values. Reject control characters before trimming.
+export function isApiKeyInput(value) {
+  return typeof value === 'string' && !/[^\x20-\x7e\xa0-\xff]/.test(value) && Boolean(value.trim());
+}
+
 export class ApiClient {
   #baseUrl;
   #vehicleId;
@@ -86,8 +91,7 @@ export class ApiClient {
       this.#apiKey = '';
       return false;
     }
-    // Fetch accepts byte strings for header values. Reject control characters before trimming.
-    if (this.#simulation || typeof value !== 'string' || /[^\x20-\x7e\xa0-\xff]/.test(value) || !value.trim()) {
+    if (this.#simulation || !isApiKeyInput(value)) {
       return false;
     }
     this.#apiKey = value.trim();
