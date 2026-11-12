@@ -213,7 +213,8 @@ test('los doce botones permanecen bloqueados mientras carga y con un catálogo v
     pending.resolve();
   }
   await expect(page.locator('#control-mode')).toHaveText(/sin comandos activos/i);
-  await expect(page.locator('#notice-detail')).toContainText('Detener no está activo');
+  await expect(page.locator('#notice')).toBeVisible();
+  await expect(page.locator('#notice')).toContainText('Detener no está activo');
   await enableControl(page);
   await expectBlockedCommands(page);
   await expect(page.locator('#stop')).toBeDisabled();
@@ -478,8 +479,8 @@ test('el joystick envía las ocho direcciones con los IDs del catálogo y se det
   await expect(page.locator('#joystick-direction')).toContainText(/neutral/i);
   await expect(command).toHaveText('Detener · ID 11');
   await expect(state).toContainText('HTTP 200');
-  await expect(page.locator('#control-receipt-command')).toHaveText('Detener · ID 11');
-  await expect(page.locator('#control-receipt-status')).toContainText('HTTP 200');
+  await expect(page.locator('#last-command')).toHaveText('Detener · ID 11');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
   expect(fixtures.posts.map(({ body }) => body.id_comando)).toEqual([...sectors.map(([, , , id]) => id), 11]);
   expect(fixtures.sentToSocket).toEqual([]);
 });
@@ -510,6 +511,67 @@ test('la simulación muestra iconos para las nuevas diagonales y responde sin co
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
   expect(fixtures.requests).toEqual([]);
   expect(fixtures.sockets).toEqual([]);
+});
+
+test('los pulsos de los iconos conservan el envío y la prioridad de DETENER', async ({ page }) => {
+  const fixtures = await interceptBackend(page, { catalog: fullCatalog });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await page.goto(APP);
+  await enableControl(page);
+  await expect(page.getByRole('button', { name: /diagnóstico/i })).toHaveCount(0);
+  await expect(page.locator('#activity-pane')).toHaveCount(0);
+  const lights = page.locator('[data-command="LUCES"]');
+  await expect(lights).toBeEnabled();
+  const gate = Promise.withResolvers();
+  fixtures.beforeMovementResponse = id => id === 88 ? gate.promise : Promise.resolve();
+  try {
+    const animation = await lights.evaluate(button => {
+      const icon = button.querySelector('.icon');
+      button.click();
+      const first = icon.getAnimations().at(-1);
+      button.click();
+      const second = icon.getAnimations().at(-1);
+      return { restarted: Boolean(first && second && first !== second), duration: second?.effect.getTiming().duration };
+    });
+    expect(animation.restarted).toBe(true);
+    expect(animation.duration).toBeGreaterThan(0);
+    expect(animation.duration).toBeLessThanOrEqual(300);
+    await expect(page.locator('#command-state')).toContainText('Esperando respuesta HTTP');
+    await page.locator('#stop').click();
+    await expect(page.locator('#last-command')).toHaveText('Detener · ID 11');
+    expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([88]);
+  } finally {
+    gate.resolve();
+  }
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([88, 11]);
+
+  for (const [key, id] of [['AVANZAR_DERECHA', 309], ['VELOCIDAD', 99], ['CLAXON', 628], ['DEMO_ORIGINAL', 564]]) {
+    const button = page.locator(`[data-command="${key}"]`);
+    await expect(button).toBeEnabled();
+    const duration = await button.evaluate(element => {
+      element.click();
+      return element.querySelector('.icon').getAnimations().at(-1)?.effect.getTiming().duration;
+    });
+    expect(duration).toBeGreaterThan(0);
+    expect(duration).toBeLessThanOrEqual(300);
+    await expect(page.locator('#last-command')).toContainText(`ID ${id}`);
+    await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  }
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const movingIcons = await lights.evaluate(button => {
+    button.click();
+    return button.querySelector('.icon').getAnimations().length;
+  });
+  expect(movingIcons).toBe(0);
+  await expect(page.locator('#last-command')).toHaveText('Luces · ID 88');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([88, 11, 309, 99, 628, 564, 88]);
+  expect(fixtures.posts.every(post => post.path === MOVEMENT && post.key === KEY)).toBe(true);
+  expect(fixtures.sentToSocket).toEqual([]);
+  expect(errors).toEqual([]);
 });
 
 test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETENER', async ({ page }) => {

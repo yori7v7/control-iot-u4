@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
 import { CONFIG } from '../js/config.js';
+import { viewports } from './viewport-matrix.js';
 
 const APP = '/control-iot-u4/';
 const MONITOR = `${APP}#monitoreo`;
@@ -13,6 +14,34 @@ const REVERSE = 'Retroceder a la izquierda';
 const monitor = '#monitor-view';
 const command = '#monitor-command';
 const rows = '#monitor-history-body tr';
+const pager = '#monitor-history-pagination';
+const previousPage = '#monitor-history-prev';
+const nextPage = '#monitor-history-next';
+const pageNumber = '#monitor-history-page';
+
+async function expectMonitoringToFit(page) {
+  await expect.poll(() => page.evaluate(() => {
+    const { documentElement, body } = document;
+    const table = document.querySelector('#monitor-history-table');
+    const tableBounds = table.getBoundingClientRect();
+    const rowsFit = [...table.querySelectorAll('tr')].every(row => {
+      const bounds = row.getBoundingClientRect();
+      return bounds.height > 0 && bounds.top >= tableBounds.top && bounds.bottom <= tableBounds.bottom &&
+        bounds.left >= 0 && bounds.right <= documentElement.clientWidth && bounds.bottom <= documentElement.clientHeight;
+    });
+    return {
+      document: [documentElement.scrollWidth - documentElement.clientWidth,
+        documentElement.scrollHeight - documentElement.clientHeight],
+      bodyFits: body.scrollWidth <= documentElement.clientWidth && body.scrollHeight <= documentElement.clientHeight,
+      table: [table.scrollWidth - table.clientWidth, table.scrollHeight - table.clientHeight],
+      scroll: [window.scrollX, window.scrollY], rowsFit,
+    };
+  })).toEqual({ document: [0, 0], bodyFits: true, table: [0, 0], scroll: [0, 0], rowsFit: true });
+}
+
+async function historyIds(page) {
+  return page.locator(rows).evaluateAll(elements => elements.map(row => row.dataset.historyId));
+}
 
 function savedState(comando = 'AVANZAR_DERECHA', codigo = 9, id_comando = 7, fecha_actualizacion = WHEN) {
   return {
@@ -222,6 +251,7 @@ test('distingue estado nulo, historial vacío y pérdida de frescura tras un fal
 
 test('un evento externo cambia la tarjeta de inmediato y el historial espera la lectura REST', async ({ page, baseURL }) => {
   const fixtures = await intercept(page, baseURL, { history: [historyEntry(640, 'AVANZAR_DERECHA', 9)] });
+  await page.setViewportSize({ width: 568, height: 320 });
   await page.clock.install();
   await page.goto(MONITOR);
   await expect(page.locator(rows)).toHaveCount(1);
@@ -238,6 +268,10 @@ test('un evento externo cambia la tarjeta de inmediato y el historial espera la 
     await reconciled.promise;
     return json(fixtures.history);
   };
+  fixtures.respondState = async json => {
+    await reconciled.promise;
+    return json(fixtures.state);
+  };
   fixtures.state = savedState('RETROCEDER_IZQUIERDA', 6, 5);
   fixtures.history = [historyEntry(641, 'RETROCEDER_IZQUIERDA', 6), ...fixtures.history];
   const event = fixtures.publish({
@@ -250,11 +284,13 @@ test('un evento externo cambia la tarjeta de inmediato y el historial espera la 
     await page.clock.runFor(800);
     await waiting.promise;
     await expect(page.locator(rows)).toHaveCount(1);
+    await expectMonitoringToFit(page);
   } finally {
     reconciled.resolve();
   }
   await expect(page.locator(rows)).toHaveCount(2);
   await expect(page.locator(rows).first()).toContainText(REVERSE);
+  fixtures.respondState = null;
   fixtures.respondHistory = null;
   await page.clock.runFor(800);
   const before = { state: fixtures.reads(STATE), history: fixtures.reads(HISTORY) };
@@ -415,44 +451,159 @@ test('conserva Detener en MONITOREO hasta confirmar la parada de una DEMO cancel
   assertIsolated(fixtures);
 });
 
-test.describe('MONITOREO móvil', () => {
-  test.use({ isMobile: true, hasTouch: true });
+for (const { group, mobile, sizes } of viewports) {
+  test.describe(`MONITOREO en ${group}`, () => {
+    test.use({ isMobile: mobile, hasTouch: mobile });
 
-  for (const [width, height] of [[320, 568], [568, 320]]) {
-    test(`${width} × ${height} conserva navegación, tabla y controles dentro del ancho`, async ({ page, baseURL }) => {
-      const fixtures = await intercept(page, baseURL, { history: historyWindow() });
-      await page.setViewportSize({ width, height });
-      await page.goto(APP);
-      await expect(page.locator('#stop')).toBeInViewport();
-      const size = await page.locator('#stop').boundingBox();
-      expect(size.width).toBeGreaterThanOrEqual(44);
-      expect(size.height).toBeGreaterThanOrEqual(44);
+    for (const [width, height] of sizes) {
+      test(`${width} × ${height} permite consultar los diez registros sin scroll`, async ({ page, baseURL }) => {
+        const fixtures = await intercept(page, baseURL, { history: historyWindow() });
+        await page.setViewportSize({ width, height });
+        await page.goto(APP);
+        await expect(page.locator('#stop')).toBeInViewport();
+        const size = await page.locator('#stop').boundingBox();
+        expect(size.width).toBeGreaterThanOrEqual(44);
+        expect(size.height).toBeGreaterThanOrEqual(44);
 
-      await navigate(page, 'Monitoreo');
-      await expect(page.locator(monitor)).toBeVisible();
-      await expect(page.getByRole('table')).toBeVisible();
-      await expect(page.getByRole('columnheader').first()).toBeVisible();
-      await expect(page.locator(rows)).toHaveCount(10);
-      const dimensions = await page.evaluate(() => {
-        const { body, documentElement } = document;
-        return {
-          viewport: documentElement.clientWidth, document: documentElement.scrollWidth, body: body.scrollWidth,
-        };
+        await navigate(page, 'Monitoreo');
+        await expect(page.locator(monitor)).toBeVisible();
+        await expect(page.getByRole('table')).toBeVisible();
+        await expect(page.getByRole('columnheader').first()).toBeVisible();
+        await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', '640');
+        await expectMonitoringToFit(page);
+        if (width === 1920) {
+          await expect(page.locator(rows)).toHaveCount(10);
+          await expect(page.locator(pager)).toBeHidden();
+        }
+        if (width === 320 || height === 320) {
+          await expect(page.locator(pager)).toBeVisible();
+          expect(await page.locator(rows).count()).toBeLessThan(10);
+          await expect(page.locator(pageNumber)).toHaveText(/^Página 1 de (?:[2-9]|10)$/);
+          for (const selector of [previousPage, nextPage]) {
+            const target = await page.locator(selector).boundingBox();
+            expect(target.width).toBeGreaterThanOrEqual(44);
+            expect(target.height).toBeGreaterThanOrEqual(44);
+          }
+        }
+        if (width === 320) {
+          await page.evaluate(axe.source);
+          const violations = await page.evaluate(async () => {
+            const result = await window.axe.run({ runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] });
+            return result.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(node => node.target) }));
+          });
+          expect(violations).toEqual([]);
+        }
+
+        const seen = await historyIds(page);
+        const next = page.locator(nextPage);
+        for (let step = 0; step < 9 && await next.isVisible() && await next.isEnabled(); step++) {
+          const first = (await historyIds(page))[0];
+          if (mobile) await next.tap();
+          else await next.click();
+          await expect(page.locator(rows).first()).not.toHaveAttribute('data-history-id', first);
+          await expectMonitoringToFit(page);
+          seen.push(...await historyIds(page));
+        }
+        expect(seen).toEqual(historyWindow().slice(0, 10).map(row => String(row.id_historial)));
+        if (await page.locator(pager).isVisible()) await expect(next).toBeDisabled();
+
+        await navigate(page, 'Control');
+        await expect(page.locator('#stop')).toBeInViewport();
+        await expect(page.locator('#joystick')).toBeInViewport();
+        expect(fixtures.sockets).toHaveLength(1);
+        assertIsolated(fixtures);
       });
-      expect(dimensions).toEqual({ viewport: width, document: width, body: width });
-      if (width === 320) {
-        await page.evaluate(axe.source);
-        const violations = await page.evaluate(async () => {
-          const result = await window.axe.run({ runOnly: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] });
-          return result.violations.map(({ id, nodes }) => ({ id, nodes: nodes.map(node => node.target) }));
-        });
-        expect(violations).toEqual([]);
-      }
-      await navigate(page, 'Control');
-      await expect(page.locator('#stop')).toBeInViewport();
-      await expect(page.locator('#joystick')).toBeInViewport();
-      expect(fixtures.sockets).toHaveLength(1);
-      assertIsolated(fixtures);
-    });
-  }
+    }
+  });
+}
+
+test('mantiene la página anterior al reconciliar WSS y permite volver a lo más reciente con teclado', async ({ page, baseURL }) => {
+  const fixtures = await intercept(page, baseURL, { history: historyWindow() });
+  await page.setViewportSize({ width: 568, height: 320 });
+  await page.goto(MONITOR);
+  await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', '640');
+  const next = page.locator(nextPage);
+  await expect(next).toBeEnabled();
+  await next.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator(pageNumber)).toContainText('Página 2 de');
+  await expect(next).toBeFocused();
+  await expect.poll(() => fixtures.sockets.length).toBe(1);
+  const anchor = (await historyIds(page))[0];
+
+  fixtures.state = savedState('DETENER', 0, 1);
+  fixtures.history = [historyEntry(641, 'DETENER', 0), ...fixtures.history];
+  fixtures.publish({
+    tipo_evento: 'movimiento', id_comando: 1, comando: 'DETENER', codigo: 0,
+    timestamp: WHEN, conectado: true, origen: 'API',
+  });
+  await expect(page.locator(command)).toHaveText('Detener');
+  await expect(page.locator('#monitor-history-new')).toBeVisible();
+  await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', anchor);
+  await expect(next).toBeFocused();
+  await expectMonitoringToFit(page);
+
+  const previous = page.locator(previousPage);
+  await previous.focus();
+  for (let step = 0; step < 9 && await previous.isEnabled(); step++) await page.keyboard.press('Enter');
+  await expect(page.locator(pageNumber)).toContainText('Página 1 de');
+  await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', '641');
+  await expect(page.locator('#monitor-history-new')).toBeHidden();
+  assertIsolated(fixtures);
+});
+
+test('recalcula las filas al reducir el viewport CSS equivalente al zoom al 200 %', async ({ page, baseURL }) => {
+  const fixtures = await intercept(page, baseURL, { history: historyWindow() });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(MONITOR);
+  await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', '640');
+  await expectMonitoringToFit(page);
+  const initialRows = await page.locator(rows).count();
+
+  await page.setViewportSize({ width: 640, height: 360 });
+  await expect(page.locator(nextPage)).toBeEnabled();
+  await expect.poll(() => page.locator(rows).count()).toBeLessThan(initialRows);
+  await expectMonitoringToFit(page);
+  await page.locator(nextPage).click();
+  await expect(page.locator(pageNumber)).toContainText('Página 2 de');
+  await expectMonitoringToFit(page);
+  assertIsolated(fixtures);
+});
+
+test('mantiene las páginas de MONITOREO dentro de las áreas seguras en horizontal', async ({ page, baseURL, context }) => {
+  const fixtures = await intercept(page, baseURL, { history: historyWindow() });
+  await page.setViewportSize({ width: 844, height: 390 });
+  const cdp = await context.newCDPSession(page);
+  const insets = { left: 44, right: 36, top: 12, bottom: 18 };
+  await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets });
+  await page.goto(MONITOR);
+  await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', '640');
+  await expectMonitoringToFit(page);
+  const bounds = await page.locator(monitor).boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(insets.left);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(844 - insets.right);
+  expect(bounds.y + bounds.height).toBeLessThanOrEqual(390 - insets.bottom);
+  await page.locator(nextPage).click();
+  await expect(page.locator(pageNumber)).toContainText('Página 2 de');
+  await expectMonitoringToFit(page);
+  assertIsolated(fixtures);
+});
+
+test('permite leer y paginar con desplazamiento de página cuando el alto es extremo', async ({ page, baseURL }) => {
+  const fixtures = await intercept(page, baseURL, { history: historyWindow() });
+  await page.setViewportSize({ width: 320, height: 200 });
+  await page.goto(MONITOR);
+  const first = page.locator(rows).first();
+  await expect(first).toHaveAttribute('data-history-id', '640');
+  expect(await page.evaluate(() => {
+    const root = document.documentElement;
+    const table = document.querySelector('#monitor-history-table');
+    return root.scrollHeight > root.clientHeight && root.scrollWidth === root.clientWidth &&
+      table.scrollHeight === table.clientHeight && table.scrollWidth === table.clientWidth;
+  })).toBe(true);
+  await page.locator(nextPage).click();
+  await expect(first).toHaveAttribute('data-history-id', '639');
+  await first.scrollIntoViewIfNeeded();
+  await expect(first).toBeInViewport();
+  assertIsolated(fixtures);
 });
