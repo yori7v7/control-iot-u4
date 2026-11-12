@@ -1,7 +1,7 @@
 exclude:
   - README.md
-  - docs/
-  - tests/
+  - assets/docs/
+  - assets/tests/
   - package.json
   - package-lock.json
   - playwright.config.js
@@ -14,4 +14,4 @@ exclude:
   - .sass-cache/
 
 include:
-  - css/vendor
+  - assets/css/vendor

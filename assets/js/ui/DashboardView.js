@@ -1,19 +1,21 @@
+import { formatCommandName, formatCommandReferences } from './commandLabels.js';
+
 const DIRECTIONS = {
-  AVANZAR_IZQUIERDA: ['Avanzar e izquierda', 'diagonal-up-left'],
-  AVANZAR: ['Avanzar', 'up'],
-  AVANZAR_DERECHA: ['Avanzar y derecha', 'diagonal-up'],
-  IZQUIERDA: ['Izquierda', 'left'],
-  DERECHA: ['Derecha', 'right'],
-  RETROCEDER_IZQUIERDA: ['Retroceder e izquierda', 'diagonal-down'],
-  RETROCEDER: ['Retroceder', 'down'],
-  RETROCEDER_DERECHA: ['Retroceder y derecha', 'diagonal-down-right'],
+  AVANZAR_IZQUIERDA: 'diagonal-up-left',
+  AVANZAR: 'up',
+  AVANZAR_DERECHA: 'diagonal-up',
+  IZQUIERDA: 'left',
+  DERECHA: 'right',
+  RETROCEDER_IZQUIERDA: 'diagonal-down',
+  RETROCEDER: 'down',
+  RETROCEDER_DERECHA: 'diagonal-down-right',
 };
 const CARDINAL_DIRECTIONS = ['AVANZAR', 'IZQUIERDA', 'DERECHA', 'RETROCEDER'];
 const EXTRAS = {
-  LUCES: ['Luces', 'lights'],
-  VELOCIDAD: ['Velocidad', 'speed'],
-  DEMO_ORIGINAL: ['DEMO original', 'sequence'],
-  CLAXON: ['Claxon', 'horn'],
+  LUCES: 'lights',
+  VELOCIDAD: 'speed',
+  DEMO_ORIGINAL: 'sequence',
+  CLAXON: 'horn',
 };
 const PHASE_LABELS = {
   queued: 'Solicitud en espera.',
@@ -77,11 +79,12 @@ export class DashboardView {
   }
 
   setNotice(message, bad = false) {
+    const text = formatCommandReferences(message);
     for (const id of ['notice', 'notice-detail']) {
       const notice = this.element(id);
       notice.dataset.tone = bad ? 'bad' : 'idle';
       notice.hidden = !message;
-      setText(notice, message);
+      setText(notice, text);
     }
     this.#updateActivityAttention();
   }
@@ -93,11 +96,11 @@ export class DashboardView {
     const extras = this.element('extra-buttons');
     directions.replaceChildren();
     extras.replaceChildren();
-    for (const [key, [label, icon]] of Object.entries(DIRECTIONS)) {
-      directions.append(this.#commandButton(key, label, request, icon));
+    for (const [key, icon] of Object.entries(DIRECTIONS)) {
+      directions.append(this.#commandButton(key, key, request, icon));
     }
-    for (const [key, [label, icon]] of Object.entries(EXTRAS)) {
-      extras.append(this.#commandButton(key, label, request, icon));
+    for (const [key, icon] of Object.entries(EXTRAS)) {
+      extras.append(this.#commandButton(key, key, request, icon));
     }
     for (const { key, name, active } of catalog) {
       if (active && key !== 'DETENER' && !Object.hasOwn(DIRECTIONS, key) && !Object.hasOwn(EXTRAS, key)) {
@@ -106,7 +109,8 @@ export class DashboardView {
     }
   }
 
-  #commandButton(key, label, request, icon) {
+  #commandButton(key, name, request, icon) {
+    const label = formatCommandName(name);
     const button = this.#document.createElement('button');
     button.className = 'btn btn-outline-panel';
     button.type = 'button';
@@ -156,7 +160,7 @@ export class DashboardView {
 
   setPreview(key) {
     this.element('joystick').dataset.direction = key ?? '';
-    this.#text('joystick-direction', key ? key.replaceAll('_', ' ') : 'POSICIÓN NEUTRAL');
+    this.#text('joystick-direction', key ? formatCommandName(key) : 'POSICIÓN NEUTRAL');
   }
 
   setCommand(state) {
@@ -164,9 +168,12 @@ export class DashboardView {
     const { command, phase, message, correlation, ambiguous } = state;
     this.element('activity-pane').dataset.commandPhase = phase;
     this.#updateActivityAttention();
-    this.#text('last-command', `${command.name} · ID ${command.id}`);
-    const status = [PHASE_LABELS[phase], message].filter(Boolean).join(' ');
+    const commandLabel = `${formatCommandName(command.name)} · ID ${command.id}`;
+    this.#text('last-command', commandLabel);
+    this.#text('control-receipt-command', commandLabel);
+    const status = formatCommandReferences([PHASE_LABELS[phase], message].filter(Boolean).join(' '));
     this.#text('command-state', status);
+    this.#text('control-receipt-status', status);
     this.#text('command-alert', phase === 'error' ? status : '');
     this.element('event-correlation').hidden = phase !== 'accepted';
     this.#text('event-correlation', ambiguous
@@ -185,11 +192,12 @@ export class DashboardView {
 
   setEvent(event) {
     const label = EVENT_LABELS[event.tipo_evento];
-    const demo = event.id_demo ? event.nombre_demo || `DEMO ${event.id_demo}` : null;
+    const demo = event.id_demo ? formatCommandReferences(event.nombre_demo || `DEMO ${event.id_demo}`) : null;
     this.#text('last-event', demo ? `${label} · ${demo}` : label);
     const timestamp = event.timestamp?.replace('T', ' ');
-    const command = event.comando ? `${event.comando} · código ${event.codigo}` : null;
-    this.#text('event-detail', [event.tipo_evento, command, timestamp].filter(Boolean).join(' · '));
+    const command = formatCommandName(event.comando);
+    const code = command && event.codigo != null ? `código ${event.codigo}` : null;
+    this.#text('event-detail', [command, code, timestamp].filter(Boolean).join(' · '));
   }
 
   setDemo(state, { loading, busy, canStart }) {
@@ -206,7 +214,8 @@ export class DashboardView {
       for (const demo of state.catalog) {
         const option = this.#document.createElement('option');
         option.value = String(demo.id);
-        option.textContent = demo.active ? demo.name : `${demo.name} (inactiva)`;
+        const name = formatCommandReferences(demo.name);
+        option.textContent = demo.active ? name : `${name} (inactiva)`;
         select.append(option);
       }
     }
@@ -214,7 +223,7 @@ export class DashboardView {
     select.disabled = !state.catalog.length || busy;
     const description = state.catalog.find(demo => demo.id === state.selectedId)?.description;
     this.element('demo-description').hidden = !description;
-    this.#text('demo-description', description ?? '');
+    this.#text('demo-description', formatCommandReferences(description ?? ''));
     this.element('demo-start').disabled = !state.canStart;
     this.element('demo-cancel').disabled = !state.canCancel;
     this.#setDemoStatus(state, busy, canStart);
@@ -227,13 +236,13 @@ export class DashboardView {
       ready: state.steps.length ? '' : 'La DEMO no tiene movimientos programados.',
     };
     this.#text('demo-steps-title', state.steps.length ? `Movimientos programados (${state.steps.length})` : 'Movimientos programados');
-    this.#text('demo-steps-status', stepsMessage[state.stepsStatus] ?? '');
+    this.#text('demo-steps-status', formatCommandReferences(stepsMessage[state.stepsStatus] ?? ''));
     if (state.steps !== this.#steps) {
       this.#steps = state.steps;
       const list = this.element('demo-steps-list');
       list.replaceChildren(...state.steps.map(step => {
         const item = this.#document.createElement('li');
-        item.textContent = `${step.comando} · ${step.duracion_ms} ms · pausa ${step.pausa_ms} ms`;
+        item.textContent = `${formatCommandName(step.comando)} · ${step.duracion_ms} ms · pausa ${step.pausa_ms} ms`;
         return item;
       }));
     }
@@ -242,10 +251,13 @@ export class DashboardView {
   #setDemoStatus(state, busy, canStart) {
     const httpText = this.#demoHttpText(state.http);
     const activeOther = state.activeId !== null && state.activeId !== state.selectedId ? `DEMO activa ID ${state.activeId}.` : null;
-    const progress = state.progress ? `Movimiento ${state.progress.orden} · ${state.progress.comando}.` : null;
+    const progress = state.progress
+      ? `Movimiento ${state.progress.orden} · ${formatCommandName(state.progress.comando)}.`
+      : null;
     const helper = state.stepsStatus === 'ready' && state.steps.length && !state.canStart ? canStart : null;
-    const cancelNote = state.phase === 'canceled' ? this.#demoStopNote(state.stop) : null;
-    const status = [activeOther, state.message ?? helper ?? DEMO_IDLE, progress, cancelNote].filter(Boolean).join(' ');
+    const stopNote = state.stopPending || state.stop ? this.#demoStopNote(state.stop) : null;
+    const status = formatCommandReferences(
+      [activeOther, state.message ?? helper ?? DEMO_IDLE, progress, stopNote].filter(Boolean).join(' '));
     const success = !busy && state.http?.phase !== 'error' &&
       (state.phase === 'completed' || (state.phase === 'canceled' && state.stop?.phase === 'accepted'));
 
@@ -261,7 +273,7 @@ export class DashboardView {
 
     this.#setDemoHttp(httpText);
     this.#setDemoState(status, state.phase);
-    this.element('demo-stop-warning').hidden = !cancelNote || state.stop?.phase === 'accepted';
+    this.element('demo-stop-warning').hidden = !state.stopPending;
     const bar = this.element('demo-progress');
     const expected = state.lastEvent?.id_demo === state.selectedId ? state.steps.length : 0;
     bar.hidden = !state.observedSteps || !expected;
@@ -298,10 +310,10 @@ export class DashboardView {
     if (stop?.phase === 'accepted') {
       const observation = stop.compatible ? ' Evento WSS compatible recibido.'
         : stop.ambiguous ? ' La correspondencia WSS es indeterminada.' : '';
-      return `DETENER aceptado por HTTP 200.${observation}`;
+      return `Detener aceptado por HTTP 200.${observation}`;
     }
-    const warning = stop?.phase === 'error' ? 'DETENER no se confirmó. ' : '';
-    return `${warning}Usa DETENER para enviar una orden de parada.`;
+    const warning = stop?.phase === 'error' ? 'Detener no se confirmó. ' : '';
+    return `${warning}Usa Detener para enviar una orden de parada.`;
   }
 
   #demoHttpText(http) {

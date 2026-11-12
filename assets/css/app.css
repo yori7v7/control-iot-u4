@@ -475,7 +475,6 @@ body {
 progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(--red); }
 .inspector-actions { display: flex; min-width: 0; gap: .35rem; }
 .inspector-actions .btn { flex: 1 1 0; padding-inline: .25rem; }
-#activity-toggle { display: none; }
 #command-alert { display: none; }
 .attention-label { display: none; }
 #activity-toggle[data-attention] { border-color: var(--signal); color: #ffd0d5; }
@@ -526,23 +525,15 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   overflow-wrap: anywhere;
 }
 .inspector-body p { margin-block: 0 .5rem; }
-.activity-pane:not(:popover-open) {
-  position: static;
-  inset: auto;
-  display: grid;
-  width: auto;
-  max-width: none;
-  max-height: none;
-  margin: 0;
-  border: 0;
+.control-receipt {
+  min-width: 0;
   border-top: 1px solid var(--edge);
   border-radius: 0 0 .88rem 0;
   background: #1b151c;
-  box-shadow: none;
 }
-.activity-pane:not(:popover-open) .panel-heading { padding: var(--gap) var(--panel-pad) .4rem; border: 0; }
-.activity-pane:not(:popover-open) .inspector-body { max-height: clamp(132px, 27dvh, 340px); padding: 0 var(--panel-pad) var(--gap); }
-.activity-pane:not(:popover-open) #activity-close { display: none; }
+.control-receipt .panel-heading { padding: var(--gap) var(--panel-pad) .4rem; }
+.control-receipt-body { padding: 0 var(--panel-pad) var(--gap); overflow-wrap: anywhere; }
+.control-receipt-body p { margin: .2rem 0 0; }
 .demo-steps { border-top: 1px solid var(--edge); font-size: .84rem; }
 .demo-steps summary { display: list-item; min-height: var(--target); padding-block: .65rem; color: var(--signal); cursor: pointer; }
 .demo-steps ol { padding-inline-start: 1.4rem; }
@@ -594,7 +585,7 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   .drive-panel { border-radius: .88rem .88rem 0 0; }
   .right-column { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: auto; border-top: 1px solid var(--edge); border-inline-start: 0; }
   .demo-panel { border-radius: 0 0 0 .88rem; }
-  .activity-pane:not(:popover-open) { border-top: 0; border-inline-start: 1px solid var(--edge); }
+  .control-receipt { border-top: 0; border-inline-start: 1px solid var(--edge); }
 }
 
 @media (max-width: 47rem), (orientation: landscape) and (max-height: 32rem) {
@@ -639,10 +630,9 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   .demo-state, .demo-rest { font-size: .72rem; }
   .inspector-actions .btn, .demo-actions .btn { gap: .22rem; font-size: .73rem; }
   .inspector-actions .icon, .demo-actions .icon { width: .93rem; height: .93rem; }
-  #activity-toggle { display: inline-flex; }
+  .control-receipt { display: none; }
   #command-alert { display: block; }
-  .main-shell:has(#activity-pane:popover-open) #command-alert { display: none; }
-  .activity-pane:not(:popover-open) { display: none; }
+  body:has(#activity-pane:popover-open) #command-alert { display: none; }
 }
 
 @media (orientation: portrait) and (max-width: 47rem) {
@@ -701,7 +691,7 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
 
 @media (orientation: landscape) and (max-height: 32rem) {
   :root { --dial: clamp(102px, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 249px), 217px); }
-  .main-shell:has(.deck-notice:not([hidden])) {
+  .main-shell:has(.deck-notice:not([hidden])):not(:has(.monitor-view:not([hidden]))) {
     display: grid;
     grid-template-areas: "connections notice" "dashboard dashboard";
     grid-template-columns: minmax(0, 1fr) minmax(7rem, .34fr);
@@ -823,6 +813,103 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   .right-column { grid-template-rows: auto auto; }
   .deck-notice { position: static; width: auto; height: auto; border: 1px solid #a96373; padding: .34rem .54rem; clip-path: none; }
   .inspector-actions, #activity-toggle, #vehicle-detail-toggle, #activity-close, #demo-detail-close, #vehicle-detail-close { display: none; }
+}
+
+.view-links-wide, #vehicle-detail-toggle { display: none; }
+#views-toggle { font-size: .7rem; }
+.view-links {
+  gap: .3rem;
+  font-weight: 670;
+}
+.view-links a {
+  display: inline-flex;
+  min-height: var(--target);
+  align-items: center;
+  justify-content: center;
+  padding-inline: .65rem;
+  border-radius: .4rem;
+  color: var(--muted);
+  text-decoration: none;
+}
+.view-links a[aria-current="page"] { background: var(--metal); color: var(--signal); }
+.view-links a:hover { color: var(--text); }
+.view-navigation {
+  inset: calc(3.25rem + var(--safe-top)) max(var(--gutter), var(--safe-right)) auto auto;
+  min-width: 13rem;
+  padding: .35rem;
+}
+.view-links-compact { display: grid; }
+.view-links-compact a { justify-content: flex-start; }
+
+body[data-view="monitoreo"] .deck-notice,
+body[data-view="monitoreo"] #command-alert { display: none; }
+.monitor-view {
+  display: grid;
+  flex: 1 0 auto;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  min-width: 0;
+  border: 1px solid var(--edge);
+  border-radius: .75rem;
+  background: var(--surface);
+}
+.monitor-report, .monitor-history { min-width: 0; padding: var(--panel-pad); }
+.monitor-report {
+  display: grid;
+  align-content: start;
+  gap: var(--gap);
+  background: radial-gradient(ellipse at 6% 0%, #3a202d, transparent 75%);
+}
+.monitor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; min-width: 0; }
+.monitor-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.monitor-heading h2, .monitor-heading h3 { margin: 0; font-weight: 740; letter-spacing: -.028em; }
+.monitor-heading h2 { font-size: clamp(1.2rem, 3vw, 1.65rem); }
+.monitor-heading h3 { font-size: clamp(1rem, 2.1vw, 1.2rem); }
+.monitor-heading p { margin: .18rem 0 0; color: var(--muted); font-size: .78rem; }
+.monitor-id, .monitor-label { color: var(--signal); font: 650 .68rem var(--mono); }
+.monitor-id { flex: none; border: 1px solid var(--edge); border-radius: .35rem; padding: .36rem; }
+.monitor-reading {
+  display: grid;
+  min-width: 0;
+  gap: .28rem;
+  border-inline-start: 2px solid var(--signal);
+  padding-inline-start: .65rem;
+  overflow-wrap: anywhere;
+}
+.monitor-label { margin: 0; }
+.monitor-reading strong { font-size: clamp(1.25rem, 3.4vw, 2.35rem); line-height: 1.12; }
+.monitor-reading time { color: var(--muted); font: .77rem var(--mono); }
+.monitor-message, .monitor-limit { margin: 0; color: var(--muted); font-size: .75rem; overflow-wrap: anywhere; }
+.monitor-limit { margin-top: .25rem; font-size: .7rem; }
+.monitor-evidence { display: grid; gap: .2rem; border-top: 1px solid var(--edge); padding-top: .44rem; }
+#monitor-realtime[data-connected="true"] { color: var(--good); }
+.monitor-history { border-top: 1px solid var(--edge); }
+.monitor-table-scroll {
+  max-height: clamp(7rem, 43dvh, 31rem);
+  overflow-y: auto;
+  margin-top: .4rem;
+}
+.monitor-table { width: 100%; table-layout: fixed; font-size: .77rem; }
+.monitor-table th, .monitor-table td { border-bottom: 1px solid var(--edge); padding: .39rem .3rem; vertical-align: top; overflow-wrap: anywhere; }
+.monitor-table th { position: sticky; top: 0; background: var(--surface); color: var(--muted); }
+.monitor-table :is(th, td):last-child { width: 24%; }
+.monitor-table small { display: block; color: var(--muted); }
+
+@media (min-width: 64rem) and (min-height: 33rem) {
+  .view-links-wide { display: flex; flex: none; }
+  #vehicle-detail-toggle { display: inline-flex; }
+  #views-toggle { display: none; }
+  .monitor-table-scroll { max-height: max(12rem, calc(100dvh - 248px - var(--safe-top) - var(--safe-bottom))); }
+}
+
+@media (min-width: 46rem), (orientation: landscape) and (min-width: 34rem) {
+  .monitor-view { grid-template-columns: minmax(0, .95fr) minmax(0, 1.35fr); }
+  .monitor-history { border-top: 0; border-inline-start: 1px solid var(--edge); }
+}
+
+@supports not selector(:popover-open) {
+  .view-navigation { position: static; min-width: 0; }
+  #views-toggle, #views-vehicle-detail { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

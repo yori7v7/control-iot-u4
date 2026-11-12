@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
+import { formatCommandName } from '../js/ui/commandLabels.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;
@@ -15,7 +16,7 @@ const OFFLINE_ESSENTIAL = [
   ...ESSENTIAL.filter(selector => !['#exit-simulation', '#simulation-banner'].includes(selector)),
   '#open-session', '#control-mode',
 ];
-const INSPECTORS = ['#activity-toggle', '#demo-detail-toggle', '#vehicle-detail-toggle'];
+const INSPECTORS = ['#activity-toggle', '#demo-detail-toggle', '#vehicle-detail-toggle', '#views-toggle'];
 
 const viewports = [
   {
@@ -144,12 +145,12 @@ for (const { group, mobile, sizes } of viewports) {
         if (width === 320 || height === 320) {
           for (const command of ['AVANZAR_IZQUIERDA', 'RETROCEDER_DERECHA']) {
             await page.locator(`[data-command="${command}"]`).tap();
-            await expect(page.locator('#last-command')).toContainText(command);
+            await expect(page.locator('#last-command')).toContainText(formatCommandName(command));
             await expect(page.locator('#command-state')).toContainText('HTTP 200');
             await auditLayout(page);
           }
           await page.locator('#stop').tap();
-          await expect(page.locator('#last-command')).toHaveText('DETENER · ID 1');
+          await expect(page.locator('#last-command')).toHaveText('Detener · ID 1');
           await auditLayout(page);
         }
         await page.goto(APP);
@@ -203,7 +204,7 @@ test.describe('Cambios durante la operación', () => {
     }
     await page.locator('#stop').tap();
     await page.clock.runFor(120);
-    await expect(page.locator('#last-command')).toHaveText('DETENER · ID 1');
+    await expect(page.locator('#last-command')).toHaveText('Detener · ID 1');
     await expect(page.locator('#demo-stop-warning')).toBeHidden();
     await auditLayout(page);
     expect(errors).toEqual([]);
@@ -228,14 +229,14 @@ test.describe('Cambios durante la operación', () => {
       command: 'La solicitud agotó el tiempo de espera y no se obtuvo confirmación del servidor. Comprueba los indicadores de conectividad.',
     };
     await page.evaluate(async messages => {
-      const { DashboardView } = await import(`${location.pathname}js/ui/DashboardView.js`);
+      const { DashboardView } = await import(`${location.pathname}assets/js/ui/DashboardView.js`);
       const view = new DashboardView(document);
       view.setVehicle({ name: messages.vehicle, model: 'HJ2025-1D', active: true }, 1, false);
       view.setNotice(messages.alert, true);
       view.setCommand({ command: { name: 'RETROCEDER_DERECHA', id: 102 }, phase: 'error', message: messages.command });
     }, messages);
     await expect(page.locator('#notice')).toBeVisible();
-    await auditLayout(page, { essential: [...ESSENTIAL, '#notice', '#activity-toggle', '#vehicle-detail-toggle'], optional: ['#demo-detail-toggle'] });
+    await auditLayout(page, { essential: [...ESSENTIAL, '#notice', '#activity-toggle', '#views-toggle'], optional: ['#demo-detail-toggle'] });
 
     await page.locator('#activity-toggle').tap();
     const activity = page.locator('#activity-pane');
@@ -247,7 +248,8 @@ test.describe('Cambios durante la operación', () => {
     await page.locator('#activity-close').tap();
     await expect(activity).toBeHidden();
 
-    await page.locator('#vehicle-detail-toggle').tap();
+    await page.locator('#views-toggle').tap();
+    await page.locator('#views-vehicle-detail').tap();
     const vehicle = page.locator('#vehicle-detail');
     await expect(vehicle).toBeVisible();
     await expect(vehicle).toContainText(messages.vehicle);

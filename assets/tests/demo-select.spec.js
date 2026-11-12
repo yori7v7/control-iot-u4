@@ -42,7 +42,7 @@ for (const screen of ['escritorio', 'móvil']) {
       await expect(page.locator('#demo-select:open')).toHaveCount(0);
       await expect(select.locator('option:checked')).toHaveText('Recorrido de práctica');
       await expect(page.locator('#demo-start')).toBeEnabled();
-      await expect(page.locator('#demo-steps-list li').first()).toHaveText(/AVANZAR/);
+      await expect(page.locator('#demo-steps-list li').first()).toHaveText(/Avanzar/);
     });
   });
 }

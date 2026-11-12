@@ -77,6 +77,6 @@ const args = process.argv.slice(2);
 if (args.length === 1 && ['--real', '--simulacion'].includes(args[0])) {
   await observe(args[0] === '--simulacion');
 } else {
-  console.error('Uso: node tests/observe-wss.js --simulacion | --real');
+  console.error('Uso: node assets/tests/observe-wss.js --simulacion | --real');
   process.exitCode = 2;
 }

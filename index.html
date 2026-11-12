@@ -4,18 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#100d10">
-  <meta name="description" content="Consola de operación del vehículo IoT con joystick de ocho direcciones.">
+  <meta name="description" content="Consola de control y monitoreo del vehículo IoT.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://100-30-4-62.nip.io wss://100-30-4-62.nip.io; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <title>Control IoT · Consola vehicular</title>
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./css/vendor/bootstrap.min.css">
-  <link rel="stylesheet" href="./css/app.css">
-  <script type="module" src="./js/ui/sessionViewport.js"></script>
-  <script type="module" src="./js/app.js"></script>
+  <link rel="stylesheet" href="./assets/css/vendor/bootstrap.min.css">
+  <link rel="stylesheet" href="./assets/css/app.css">
+  <script type="module" src="./assets/js/ui/sessionViewport.js"></script>
+  <script type="module" src="./assets/js/app.js"></script>
 </head>
 <body>
-  <a class="visually-hidden-focusable skip-link" href="#contenido">Saltar a los controles</a>
+  <a class="visually-hidden-focusable skip-link" href="#contenido">Saltar al contenido</a>
   <header class="topbar">
     <div class="shell topbar-inner">
       <h1 class="brand">
@@ -32,9 +32,16 @@
         <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#flask"/></svg>
         <span>Simulación<span class="simulation-long"> local</span></span>
       </p>
+      <nav class="view-links view-links-wide" aria-label="Vistas de la consola">
+        <a href="#control" data-view="control" aria-current="page">Control</a>
+        <a href="#monitoreo" data-view="monitoreo">Monitoreo</a>
+      </nav>
       <div class="topbar-actions">
         <button class="btn btn-quiet icon-button" id="vehicle-detail-toggle" type="button" popovertarget="vehicle-detail" aria-label="Información del vehículo" title="Información del vehículo">
           <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#info"/></svg>
+        </button>
+        <button class="btn btn-quiet icon-button" id="views-toggle" type="button" popovertarget="view-navigation">
+          Vistas
         </button>
         <button class="btn btn-quiet session-button" id="open-session" type="button">
           <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#key"/></svg>
@@ -46,13 +53,13 @@
         </a>
         <button class="btn btn-stop" id="stop" type="button" disabled>
           <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#stop"/></svg>
-          <span>DETENER</span>
+          <span>Detener</span>
         </button>
       </div>
     </div>
   </header>
 
-  <main class="shell main-shell" id="contenido">
+  <main class="shell main-shell" id="contenido" tabindex="-1">
     <noscript><p class="notice">Activa JavaScript para utilizar la consola.</p></noscript>
     <section class="connectivity" aria-labelledby="connections-title">
       <h2 id="connections-title">Conectividad</h2>
@@ -77,10 +84,10 @@
     <p class="notice deck-notice" id="notice" role="status" hidden></p>
     <p id="command-alert" class="visually-hidden" role="status"></p>
 
-    <div class="dashboard">
+    <div class="dashboard" id="control-view">
       <section class="drive-panel" aria-labelledby="drive-title">
         <div class="panel-heading">
-          <h2 id="drive-title"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual</h2>
+          <h2 id="drive-title" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual</h2>
           <span class="mode-label" id="control-mode" role="status" data-catalog-status>Esperando catálogo</span>
         </div>
         <div class="drive-body">
@@ -104,7 +111,7 @@
           <div class="direction-area">
             <h3>Dirección</h3>
             <div class="direction-buttons" id="direction-buttons" aria-label="Botones de dirección" role="group"></div>
-            <p id="joystick-help">Arrastra o usa las flechas. Suelta para detener. Para interrumpir una orden de botón, pulsa DETENER.</p>
+            <p id="joystick-help">Arrastra o usa las flechas. Suelta para detener. Para interrumpir una orden de botón, pulsa Detener.</p>
           </div>
           <div class="extra-control">
             <h3>Comandos auxiliares</h3>
@@ -118,7 +125,7 @@
           <div class="panel-heading">
             <div class="demo-heading-text">
               <h2 id="demo-title" aria-label="Demostraciones"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#sequence"/></svg><span class="demo-title-full">Demostraciones</span><span class="demo-title-short" aria-hidden="true">DEMO</span></h2>
-              <p class="demo-stop-warning" id="demo-stop-warning" hidden>Pulsa DETENER</p>
+              <p class="demo-stop-warning" id="demo-stop-warning" hidden>Pulsa Detener</p>
             </div>
           </div>
           <div class="demo-controls">
@@ -144,37 +151,96 @@
                 <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#list"/></svg><span class="tool-label">Detalle DEMO</span>
               </button>
               <button class="btn btn-quiet" id="activity-toggle" type="button" popovertarget="activity-pane" title="Actividad de control">
-                <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg><span class="tool-label">Actividad</span><span class="attention-label">Error</span>
+                <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg><span class="tool-label">Diagnóstico</span><span class="attention-label">Error</span>
               </button>
             </div>
           </div>
         </section>
 
-        <section class="activity-pane inspector" id="activity-pane" popover aria-labelledby="event-title">
-          <div class="panel-heading">
-            <h2 id="event-title"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg>Actividad de control</h2>
-            <button class="btn btn-quiet icon-button" id="activity-close" type="button" popovertarget="activity-pane" popovertargetaction="hide" aria-label="Cerrar actividad">
-              <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#close"/></svg>
-            </button>
-          </div>
-          <div class="activity-body inspector-body" tabindex="0">
-            <p class="notice" id="notice-detail" hidden></p>
-            <div class="activity-item">
-              <span class="activity-kind">SOLICITUD REST</span>
-              <strong id="last-command">Sin comandos solicitados</strong>
-              <span class="muted" id="command-state" role="status">Esperando una acción manual.</span>
-            </div>
-            <div class="activity-item">
-              <span class="activity-kind">EVENTO WSS</span>
-              <strong id="last-event">Sin eventos recibidos</strong>
-              <span class="muted" id="event-detail"></span>
-            </div>
-            <p class="muted event-correlation" id="event-correlation" hidden></p>
+        <section class="control-receipt" aria-labelledby="control-receipt-title">
+          <div class="panel-heading"><h2 id="control-receipt-title">Confirmación de control</h2></div>
+          <div class="control-receipt-body">
+            <strong id="control-receipt-command">Sin comandos solicitados</strong>
+            <p id="control-receipt-status" class="muted" role="status">Esperando una acción manual.</p>
           </div>
         </section>
       </div>
     </div>
+
+    <section class="monitor-view" id="monitor-view" aria-labelledby="monitor-title" hidden>
+      <div class="monitor-report">
+        <div class="monitor-heading">
+          <div>
+            <h2 id="monitor-title" tabindex="-1">Monitoreo</h2>
+            <p id="monitor-vehicle">Consultando el vehículo…</p>
+          </div>
+          <span class="monitor-id" id="monitor-vehicle-id"></span>
+        </div>
+        <div class="monitor-reading">
+          <p class="monitor-label" id="monitor-source">Estado persistido</p>
+          <strong id="monitor-command">Consultando estado…</strong>
+          <time id="monitor-timestamp" hidden></time>
+          <p class="monitor-message" id="monitor-state-status" role="status"></p>
+        </div>
+        <div class="monitor-evidence">
+          <p class="monitor-message" id="monitor-realtime" role="status">Esperando WSS</p>
+          <p class="monitor-message" id="monitor-event" aria-live="polite">Sin eventos recibidos.</p>
+          <p class="monitor-limit">Ejecución física sin verificar.</p>
+        </div>
+      </div>
+
+      <section class="monitor-history" aria-labelledby="monitor-history-title">
+        <div class="monitor-heading">
+          <div>
+            <h3 id="monitor-history-title">Historial de movimientos</h3>
+            <p id="monitor-history-status" role="status">Consultando historial…</p>
+          </div>
+          <button class="btn btn-quiet icon-button" id="monitor-refresh" type="button" aria-label="Actualizar monitoreo" title="Actualizar monitoreo">
+            <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#refresh"/></svg>
+          </button>
+        </div>
+        <div class="monitor-table-scroll" role="region" aria-labelledby="monitor-history-title" tabindex="0">
+          <table class="monitor-table">
+            <caption class="visually-hidden">Hasta diez movimientos persistidos, del más reciente al más antiguo</caption>
+            <thead><tr><th scope="col">Fecha y hora</th><th scope="col">Movimiento</th><th scope="col">Origen</th></tr></thead>
+            <tbody id="monitor-history-body"></tbody>
+          </table>
+        </div>
+        <p class="monitor-limit">Las horas sin zona se muestran tal como las reporta la API.</p>
+      </section>
+    </section>
   </main>
+
+  <nav class="inspector view-navigation" id="view-navigation" popover aria-label="Vistas de la consola">
+    <div class="view-links view-links-compact">
+      <a href="#control" data-view="control" aria-current="page">Control</a>
+      <a href="#monitoreo" data-view="monitoreo">Monitoreo</a>
+      <button class="btn btn-quiet" id="views-vehicle-detail" type="button" aria-controls="vehicle-detail">Información del vehículo</button>
+    </div>
+  </nav>
+
+  <section class="activity-pane inspector" id="activity-pane" popover aria-labelledby="event-title">
+    <div class="panel-heading">
+      <h2 id="event-title"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg>Diagnóstico de control</h2>
+      <button class="btn btn-quiet icon-button" id="activity-close" type="button" popovertarget="activity-pane" popovertargetaction="hide" aria-label="Cerrar diagnóstico">
+        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#close"/></svg>
+      </button>
+    </div>
+    <div class="activity-body inspector-body" tabindex="0">
+      <p class="notice" id="notice-detail" hidden></p>
+      <div class="activity-item">
+        <span class="activity-kind">SOLICITUD REST</span>
+        <strong id="last-command">Sin comandos solicitados</strong>
+        <span class="muted" id="command-state" role="status">Esperando una acción manual.</span>
+      </div>
+      <div class="activity-item">
+        <span class="activity-kind">EVENTO WSS</span>
+        <strong id="last-event">Sin eventos recibidos</strong>
+        <span class="muted" id="event-detail"></span>
+      </div>
+      <p class="muted event-correlation" id="event-correlation" hidden></p>
+    </div>
+  </section>
 
   <section class="inspector" id="demo-detail" popover aria-labelledby="demo-detail-title">
     <div class="panel-heading">
