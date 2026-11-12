@@ -12,13 +12,13 @@ Premium Dashboard 2.0 parte del estado validado en `e0b4121`. [Estado previo al 
 
 ## Inicio local
 
-Se requiere Node.js 22 o posterior para el servidor y las pruebas. Para abrir la simulación no hace falta instalar dependencias.
+Se requiere Node.js 22 o posterior para el servidor y las pruebas. Desde la raíz del repositorio, `npm start` ejecuta `assets/tests/serve.js`. Para abrir la simulación no hace falta instalar dependencias.
 
 ```sh
 npm start
 ```
 
-Abre [la simulación local](http://127.0.0.1:4173/control-iot-u4/?modo=simulacion). La banda «Simulación local» identifica las respuestas y los eventos de prueba, generados en memoria. Los controles se pueden usar en este modo sin introducir una clave. El servidor local imita la ruta de GitHub Pages y entrega únicamente archivos estáticos de la aplicación.
+Abre [la simulación local](http://127.0.0.1:4173/control-iot-u4/?modo=simulacion). La banda «Simulación local» identifica las respuestas y los eventos de prueba, generados en memoria. Los controles se pueden usar en este modo sin introducir una clave. El servidor local imita la ruta de GitHub Pages y sirve el HTML, los estilos, los módulos y los dos SVG de la aplicación.
 
 La [vista local por defecto](http://127.0.0.1:4173/control-iot-u4/) apunta a la API real. La compatibilidad CORS de esa API se debe verificar desde `https://yori7v7.github.io`. La simulación funciona sin conectarse a AWS y evita depender de CORS durante el desarrollo.
 
@@ -72,7 +72,8 @@ Playwright ejecuta Chrome en escritorio y emula los tamaños móviles y la reduc
 | `assets/js/controllers/` | `JoystickController` gestiona puntero y teclado. `CommandService` serializa los POST y prioriza DETENER. `DemoController` coordina las demostraciones. `MonitoringController` agrupa lecturas e invalida datos con WSS. |
 | `assets/js/ui/` | `DashboardView` presenta CONTROL. `MonitoringView` presenta estado, evento e historial. `ConnectionIndicators` representa los tres canales. `commandLabels.js` traduce los nombres únicamente al presentarlos. |
 | `assets/js/app.js` y `assets/js/config.js` | El punto de entrada instancia y conecta los objetos. La configuración contiene URLs, ID y tiempos de espera. |
-| `assets/css/`, `assets/`, `tests/`, `docs/` | Iconos originales, estilos y licencia de Bootstrap, servidor y suites de prueba, auditoría de contratos. |
+| `assets/css/` y `assets/` | Estilos, Bootstrap y su licencia, favicon y sprite SVG. |
+| `assets/tests/` y `assets/docs/` | Servidor local, suites de prueba y documentación técnica. |
 
 ```text
 Joystick y botones → CommandService ─┐
@@ -86,7 +87,7 @@ El joystick y los botones envían el `id_comando` entregado por la API. La cola 
 
 El backend intenta emitir `movimiento` antes de responder HTTP 200. El panel compara vehículo, ID, nombre, código, origen, estado y marca de tiempo presentes en ambas respuestas. Muestra una coincidencia única como **compatible**, ya que el UUID de WSS no existe en HTTP y otros clientes pueden generar eventos iguales. Los estados de conectividad se actualizan con la apertura real de WSS, `GET /` y `GET /health/database`. Cuando falla la comunicación con la API de salud de RDS, el estado es «Sin verificar». Una respuesta específica del backend sobre fallo de RDS se muestra como «No disponible».
 
-Las sondas de salud se ejecutan en paralelo. La API tiene un límite de 6 segundos y RDS uno de 9 segundos. La interfaz exige WSS para iniciar una DEMO y observar el progreso. Los movimientos manuales y las solicitudes de DETENER y cancelar se transmiten por REST. La línea REST de la DEMO distingue la solicitud enviada y el estado HTTP. El progreso WSS se presenta por separado, incluso si un evento llega primero. [Auditoría de los contratos](./docs/contratos.md)
+Las sondas de salud se ejecutan en paralelo. La API tiene un límite de 6 segundos y RDS uno de 9 segundos. La interfaz exige WSS para iniciar una DEMO y observar el progreso. Los movimientos manuales y las solicitudes de DETENER y cancelar se transmiten por REST. La línea REST de la DEMO distingue la solicitud enviada y el estado HTTP. El progreso WSS se presenta por separado, incluso si un evento llega primero. [Auditoría de los contratos](./assets/docs/contratos.md)
 
 ## Seguridad y límites
 
@@ -104,17 +105,17 @@ npm test
 npm run test:browser
 ```
 
-La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./docs/pruebas.md) describe las comprobaciones locales con simulación y tráfico interceptado. La [auditoría real de solo lectura](./docs/validacion-real.md) documenta las respuestas observadas en AWS, los pasos de la DEMO y la evidencia de CORS y WSS en Chrome. Ninguna suite del frontend requiere una clave administrativa.
+La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./assets/docs/pruebas.md) describe las comprobaciones locales con simulación y tráfico interceptado. La [auditoría real de solo lectura](./assets/docs/validacion-real.md) documenta las respuestas observadas en AWS, los pasos de la DEMO y la evidencia de CORS y WSS en Chrome. Ninguna suite del frontend requiere una clave administrativa.
 
 La etapa 2 de la práctica 4.2 pasó **40 pruebas de Node y 50 de Chrome**. La regresión de CONTROL cubre los 18 tamaños de la matriz. Las pruebas nuevas de MONITOREO incluyen Chrome con emulación táctil de 320 × 568 y 568 × 320, navegación por teclado y los recursos bajo la ruta de Pages.
 
 La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. En la versión original entregada pasaron **24 pruebas de Node y 13 de Chrome**; tras ampliar el joystick a ocho direcciones, Codex reportó **27 pruebas de Node y 15 de Chrome** aprobadas, con simulación y tráfico interceptado.
 
-El propietario confirmó desde GitHub Pages la conexión con AWS real, los tres indicadores, los comandos y botones con HTTP 200, las cuatro direcciones del joystick, DETENER por REST y WSS, la finalización y cancelación de la DEMO, y DETENER posterior por HTTP 200 y WSS. Las pruebas anteriores de Swagger y WSS corresponden al backend. [Resultados finales y protocolo de validación](./docs/validacion-funcional.md)
+El propietario confirmó desde GitHub Pages la conexión con AWS real, los tres indicadores, los comandos y botones con HTTP 200, las cuatro direcciones del joystick, DETENER por REST y WSS, la finalización y cancelación de la DEMO, y DETENER posterior por HTTP 200 y WSS. Las pruebas anteriores de Swagger y WSS corresponden al backend. [Resultados finales y protocolo de validación](./assets/docs/validacion-funcional.md)
 
-Para ensayar el observador sin red, ejecuta `node tests/observe-wss.js --simulacion`.
+Para ensayar el observador sin red, ejecuta `node assets/tests/observe-wss.js --simulacion`.
 
-El [registro del rediseño visual](./docs/redisenio-visual.md) documenta la identidad, el respaldo de Git y la verificación local en diferentes tamaños de pantalla.
+El [registro del rediseño visual](./assets/docs/redisenio-visual.md) documenta la identidad, el respaldo de Git y la verificación local en diferentes tamaños de pantalla.
 
 ## Ampliación posterior a la entrega: ocho direcciones (09/11/2026)
 
@@ -134,11 +135,11 @@ El joystick interpreta ocho sectores, con cuatro movimientos cardinales y cuatro
 
 El código usa IDs del catálogo leído de AWS, no IDs de prueba fijos; los dos comandos nuevos se añadieron a RDS y constan activos. La ampliación se publicó desde `main` con el commit `e692f9e`. [Despliegue de la ampliación en GitHub Pages](https://github.com/yori7v7/control-iot-u4/actions/runs/42723870488)
 
-Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepción y despacho WSS de las ocho direcciones, incluidas las nuevas, y DETENER. **Actualización posterior (09/11/2026):** el propietario confirmó que completó las pruebas físicas de los movimientos del joystick, incluidas las dos diagonales nuevas, y que funcionaron correctamente tanto desde laptop como desde teléfono. Esta confirmación es testimonial y complementa la evidencia previa de WSS/Monitor Serie; no se adjuntó una nueva grabación del movimiento físico. Véase [validación de la ampliación](./docs/validacion-funcional.md#ampliacion-posterior-joystick-de-ocho-direcciones-09112026).
+Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepción y despacho WSS de las ocho direcciones, incluidas las nuevas, y DETENER. **Actualización posterior (09/11/2026):** el propietario confirmó que completó las pruebas físicas de los movimientos del joystick, incluidas las dos diagonales nuevas, y que funcionaron correctamente tanto desde laptop como desde teléfono. Esta confirmación es testimonial y complementa la evidencia previa de WSS/Monitor Serie; no se adjuntó una nueva grabación del movimiento físico. Véase [validación de la ampliación](./assets/docs/validacion-funcional.md#ampliaci%C3%B3n-posterior-joystick-de-ocho-direcciones-09112026).
 
 ## Publicación en GitHub Pages
 
-La fuente de Pages es **Deploy from a branch**, rama `main`, carpeta **/(root)**. El frontend usa recursos relativos y no requiere compilar JavaScript. GitHub Pages aplica `_config.yml` para excluir del sitio las pruebas, documentos, archivos de desarrollo y cachés. Las pruebas y la documentación siguen disponibles en el repositorio. [Configuración de la fuente de Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
+La fuente de Pages es **Deploy from a branch**, rama `main`, carpeta **/(root)**. El frontend usa recursos relativos y no requiere compilar JavaScript. GitHub Pages aplica `_config.yml` para excluir `assets/tests/`, `assets/docs/`, los archivos de desarrollo y las cachés. Las pruebas y la documentación se consultan en el repositorio. [Configuración de la fuente de Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
 La URL sin parámetros abre CONTROL real. MONITOREO usa `#monitoreo` en esa misma página. La simulación se activa mediante `?modo=simulacion` y genera respuestas de prueba solo para CONTROL. Los recursos se publican bajo `/control-iot-u4/assets/`. La ampliación 4.2 se entrega para revisión en una rama y su comprobación en Pages queda pendiente de integración.
 

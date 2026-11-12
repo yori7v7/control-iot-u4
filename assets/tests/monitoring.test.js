@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MonitoringController } from '../assets/js/controllers/MonitoringController.js';
-import { MovementHistoryEntry } from '../assets/js/models/MovementHistoryEntry.js';
-import { VehicleState } from '../assets/js/models/VehicleState.js';
-import { ApiClient } from '../assets/js/services/ApiClient.js';
-import { WebSocketClient } from '../assets/js/services/WebSocketClient.js';
+import { MonitoringController } from '../js/controllers/MonitoringController.js';
+import { MovementHistoryEntry } from '../js/models/MovementHistoryEntry.js';
+import { VehicleState } from '../js/models/VehicleState.js';
+import { ApiClient } from '../js/services/ApiClient.js';
+import { WebSocketClient } from '../js/services/WebSocketClient.js';
 
 const time = '2026-11-11T18:01:47';
 const stateRow = {

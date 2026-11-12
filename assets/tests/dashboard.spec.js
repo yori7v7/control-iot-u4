@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
-import { CONFIG } from '../assets/js/config.js';
+import { CONFIG } from '../js/config.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;
@@ -301,7 +301,15 @@ test('carga recursos en el subdirectorio y opera por teclado en simulación sin 
   const favicon = await request.get(faviconUrl.href);
   expect(favicon.headers()['content-type']).toContain('image/svg+xml');
   expect(await favicon.text()).toContain('<svg');
-  expect((await request.get(`${APP}tests/dashboard.spec.js`)).status()).toBe(404);
+  for (const path of [
+    'tests/dashboard.spec.js',
+    'assets/tests/dashboard.spec.js',
+    'assets/tests/monitoring.test.js',
+    'assets/tests/public-assets.js',
+    'assets/docs/contratos.md',
+  ]) {
+    expect((await request.get(`${APP}${path}`)).status(), path).toBe(404);
+  }
 
   await page.keyboard.press('Tab');
   await expect(page.getByRole('link', { name: 'Saltar al contenido' })).toBeFocused();

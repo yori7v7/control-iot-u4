@@ -1,5 +1,5 @@
 import { devices, expect, test } from '@playwright/test';
-import { CONFIG } from '../assets/js/config.js';
+import { CONFIG } from '../js/config.js';
 
 const APP = '/control-iot-u4/';
 const CATALOG = `${CONFIG.apiUrl}/vehiculos/${CONFIG.vehicleId}/demos`;

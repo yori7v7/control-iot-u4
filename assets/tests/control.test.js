@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CommandService } from '../assets/js/controllers/CommandService.js';
-import { DemoController } from '../assets/js/controllers/DemoController.js';
-import { JoystickController } from '../assets/js/controllers/JoystickController.js';
+import { CommandService } from '../js/controllers/CommandService.js';
+import { DemoController } from '../js/controllers/DemoController.js';
+import { JoystickController } from '../js/controllers/JoystickController.js';
 
 const CATALOG = [
   { id: 1, name: 'DETENER', key: 'DETENER', code: 0, active: true },

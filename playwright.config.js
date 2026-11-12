@@ -4,7 +4,7 @@ const port = Number(process.env.PORT ?? 4173);
 const baseURL = `http://127.0.0.1:${port}`;
 
 export default defineConfig({
-  testDir: './tests',
+  testDir: './assets/tests',
   testMatch: '**/*.spec.js',
   timeout: 25_000,
   reporter: 'list',

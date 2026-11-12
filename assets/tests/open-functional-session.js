@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
 import { createInterface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
-import { CONFIG } from '../assets/js/config.js';
+import { CONFIG } from '../js/config.js';
+import { resolvePublicAsset } from './public-assets.js';
 
 const APP = new URL('https://yori7v7.github.io/control-iot-u4/');
 const VEHICLE = '/vehiculos/1';
@@ -11,16 +12,11 @@ const DEMO = `${VEHICLE}/demos/1`;
 const MOVEMENT = `${VEHICLE}/movimientos`;
 const READ_PATHS = new Set([
   '/', '/health/database', VEHICLE, `${VEHICLE}/comandos`, `${VEHICLE}/demos`, `${DEMO}/movimientos`,
+  `${VEHICLE}/estado`, `${VEHICLE}/historial`,
 ]);
 const CONTROL_PATHS = new Set([MOVEMENT, `${DEMO}/ejecutar`, `${DEMO}/cancelar`]);
 const COMMANDS = new Map([[1, ['DETENER', 0]], [2, ['AVANZAR', 1]], [6, ['DERECHA', 8]]]);
 const CONFIRMATION = 'MICROCONTROLADOR DESCONECTADO Y POST AUTORIZADOS';
-const TYPES = {
-  html: 'text/html; charset=utf-8',
-  css: 'text/css; charset=utf-8',
-  js: 'text/javascript; charset=utf-8',
-  svg: 'image/svg+xml',
-};
 
 function movementId(request) {
   try {
@@ -38,22 +34,19 @@ function allowsPost(path, request) {
 }
 
 async function serveLocal(route, path) {
-  const asset = path.slice(APP.pathname.length) || 'index.html';
-  if (!path.startsWith(APP.pathname) || (asset !== 'index.html' &&
-    !/^assets\/(?:[a-z\d_-]+\/)*[a-z\d_.-]+\.(?:css|js|svg)$/i.test(asset))) {
-    return route.abort();
-  }
+  const asset = resolvePublicAsset(path, APP.pathname);
+  if (!asset) return route.abort();
 
   let body;
   try {
-    body = await readFile(new URL(`../${asset}`, import.meta.url));
+    body = await readFile(asset.url);
   } catch {
     return route.fulfill({ status: 404 });
   }
   return route.fulfill({
     status: 200,
     body,
-    headers: { 'content-type': TYPES[asset.split('.').at(-1).toLowerCase()], 'cache-control': 'no-store' },
+    headers: { 'content-type': asset.contentType, 'cache-control': 'no-store' },
   });
 }
 
@@ -125,7 +118,7 @@ async function askForConfirmation() {
 async function openSession(args) {
   const allowPost = args.length === 1 && args[0] === '--habilitar-post';
   if (args.length && !allowPost) {
-    console.error('Uso: node tests/open-functional-session.js [--habilitar-post]');
+    console.error('Uso: node assets/tests/open-functional-session.js [--habilitar-post]');
     process.exitCode = 1;
     return;
   }

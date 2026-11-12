@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
-import { formatCommandName } from '../assets/js/ui/commandLabels.js';
+import { formatCommandName } from '../js/ui/commandLabels.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;

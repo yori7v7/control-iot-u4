@@ -1,5 +1,5 @@
-import { CONFIG } from '../assets/js/config.js';
-import { WebSocketClient } from '../assets/js/services/WebSocketClient.js';
+import { CONFIG } from '../js/config.js';
+import { WebSocketClient } from '../js/services/WebSocketClient.js';
 
 const MAX_SESSION_MS = 10 * 60 * 1000;
 const HANDSHAKE_TIMEOUT_MS = 12000;
@@ -18,7 +18,7 @@ function selectFields(record, fields) {
 async function observe(simulation) {
   const { vehicleId, wsUrl } = CONFIG;
   const WebSocketImpl = simulation
-    ? (await import('../assets/js/services/simulation.js')).createSimulation().WebSocketImpl
+    ? (await import('../js/services/simulation.js')).createSimulation().WebSocketImpl
     : globalThis.WebSocket;
   const mode = simulation ? 'simulacion' : 'real';
   let opened = false;
@@ -77,6 +77,6 @@ const args = process.argv.slice(2);
 if (args.length === 1 && ['--real', '--simulacion'].includes(args[0])) {
   await observe(args[0] === '--simulacion');
 } else {
-  console.error('Uso: node tests/observe-wss.js --simulacion | --real');
+  console.error('Uso: node assets/tests/observe-wss.js --simulacion | --real');
   process.exitCode = 2;
 }

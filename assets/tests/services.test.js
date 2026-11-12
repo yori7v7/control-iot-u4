@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
-import { BACKEND_DETAILS, CONFIG, isSimulation } from '../assets/js/config.js';
-import { Command } from '../assets/js/models/Command.js';
-import { Demo } from '../assets/js/models/Demo.js';
-import { Vehicle } from '../assets/js/models/Vehicle.js';
-import { ApiClient, ApiError } from '../assets/js/services/ApiClient.js';
-import { ConnectionService } from '../assets/js/services/ConnectionService.js';
-import { createSimulation } from '../assets/js/services/simulation.js';
-import { WebSocketClient } from '../assets/js/services/WebSocketClient.js';
+import { BACKEND_DETAILS, CONFIG, isSimulation } from '../js/config.js';
+import { Command } from '../js/models/Command.js';
+import { Demo } from '../js/models/Demo.js';
+import { Vehicle } from '../js/models/Vehicle.js';
+import { ApiClient, ApiError } from '../js/services/ApiClient.js';
+import { ConnectionService } from '../js/services/ConnectionService.js';
+import { createSimulation } from '../js/services/simulation.js';
+import { WebSocketClient } from '../js/services/WebSocketClient.js';
 
 const movement = {
   resultado: 'ok', id_vehiculo: 1, id_comando: 2, comando: 'AVANZAR', codigo: 1,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatCommandName, formatCommandReferences } from '../assets/js/ui/commandLabels.js';
+import { formatCommandName, formatCommandReferences } from '../js/ui/commandLabels.js';
 
 test('presenta diagonales, parada y demostración con sus nombres naturales', () => {
   assert.deepEqual([

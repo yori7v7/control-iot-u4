@@ -1,18 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolvePublicAsset } from './public-assets.js';
 
 const host = '127.0.0.1';
 const port = Number(process.env.PORT ?? 4173);
-const root = fileURLToPath(new URL('../', import.meta.url));
 const basePath = '/control-iot-u4/';
-const types = {
-  html: 'text/html; charset=utf-8',
-  css: 'text/css; charset=utf-8',
-  js: 'text/javascript; charset=utf-8',
-  svg: 'image/svg+xml',
-};
 
 createServer(async (request, response) => {
   if (!['GET', 'HEAD'].includes(request.method)) {
@@ -24,19 +16,16 @@ createServer(async (request, response) => {
     response.writeHead(302, { Location: `${basePath}${search}` }).end();
     return;
   }
-  const asset = pathname.slice(basePath.length) || 'index.html';
-  const isPublic = asset === 'index.html' ||
-    /^assets\/(?:[a-z\d_-]+\/)*[a-z\d_.-]+\.(?:css|js|svg)$/i.test(asset);
-  if (!pathname.startsWith(basePath) || !isPublic) {
+  const asset = resolvePublicAsset(pathname, basePath);
+  if (!asset) {
     response.writeHead(404).end();
     return;
   }
 
   try {
-    const contents = await readFile(resolve(root, asset));
-    const extension = asset.split('.').at(-1).toLowerCase();
+    const contents = await readFile(asset.url);
     response.writeHead(200, {
-      'Content-Type': types[extension],
+      'Content-Type': asset.contentType,
       'Content-Length': contents.length,
       'Cache-Control': 'no-store',
     });
