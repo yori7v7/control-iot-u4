@@ -109,6 +109,8 @@ La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./ass
 
 La etapa 2 de la práctica 4.2 pasó **40 pruebas de Node y 50 de Chrome**. La regresión de CONTROL cubre los 18 tamaños de la matriz. Las pruebas nuevas de MONITOREO incluyen Chrome con emulación táctil de 320 × 568 y 568 × 320, navegación por teclado y los recursos bajo la ruta de Pages.
 
+En la etapa 3, la vista previa de la rama bajo el origen de GitHub Pages abrió MONITOREO sin clave, consultó diez movimientos reales en RDS y reconcilió el estado y el historial tras reconectar WSS. Pasaron **40 pruebas de Node y 51 de Chrome**, incluida la regresión de Detener tras un error de ejecución de DEMO. La verificación del artefacto público de 4.2 y el acceso de operador a CONTROL sin introducir manualmente la clave siguen pendientes. [Validación real de la etapa 3](./assets/docs/pruebas.md#etapa-3--validaci%C3%B3n-real-de-aws-previa-al-merge)
+
 La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. En la versión original entregada pasaron **24 pruebas de Node y 13 de Chrome**; tras ampliar el joystick a ocho direcciones, Codex reportó **27 pruebas de Node y 15 de Chrome** aprobadas, con simulación y tráfico interceptado.
 
 El propietario confirmó desde GitHub Pages la conexión con AWS real, los tres indicadores, los comandos y botones con HTTP 200, las cuatro direcciones del joystick, DETENER por REST y WSS, la finalización y cancelación de la DEMO, y DETENER posterior por HTTP 200 y WSS. Las pruebas anteriores de Swagger y WSS corresponden al backend. [Resultados finales y protocolo de validación](./assets/docs/validacion-funcional.md)

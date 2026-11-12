@@ -14,6 +14,28 @@ Tras mover la documentación y las pruebas a `assets/`, `npm ci` terminó correc
 
 En Chrome, MONITOREO abrió sin clave con los archivos de la rama servidos mediante intercepción bajo el origen de GitHub Pages. Los GET reales de estado e historial agotaron el tiempo de espera, también en las comprobaciones directas desde Node. WSS quedó en reconexión sin recibir `estado_actual`. La interfaz mostró el error de lectura, API «No disponible» y RDS «Sin verificar». Los GET y el evento inicial quedan pendientes de verificar con AWS disponible. La URL pública respondió HTTP 200 y sirvió la versión anterior de CONTROL.
 
+### Etapa 3 · Validación real de AWS previa al merge
+
+El 11 de noviembre de 2026, hora de Ciudad de México, las cinco consultas reales de lectura respondieron HTTP 200 con `application/json`, `Access-Control-Allow-Origin: https://yori7v7.github.io` y `Vary: Origin`. Se enviaron sin clave, autorización ni cookies. Estas fueron las respuestas observadas.
+
+| GET | Resultado |
+| --- | --- |
+| `/` | `status: ok` y servicio `Vehículo IoT API`. |
+| `/health/database` | `status: ok`, `database: available`. El diagnóstico del código de referencia invoca un procedimiento de lectura. |
+| `/vehiculos/1` | Vehículo 1, «Mini RC Forklift IoT», activo. |
+| `/vehiculos/1/estado` | `DETENER`, ID de comando 1, código 0, `conectado: true`, `fecha_actualizacion: 2026-11-11T18:22:33`. |
+| `/vehiculos/1/historial` | Diez filas de origen `API`, IDs exactos del 651 al 642. Orden descendente por fecha y por ID en el empate de los registros 648 y 647. Intervalo `18:22:33` a `18:18:21` del mismo día. |
+
+El cliente WSS independiente abrió dos conexiones consecutivas con HTTP 101 y TLS 1.3 validado. Ambas entregaron `estado_actual` del vehículo 1, con `comando`, `codigo`, `timestamp` y el objeto `estado`. El timestamp coincidió con la fecha del estado persistido. El cliente cerró ambas sesiones normalmente con código 1000. Solo se observaron tramas iniciales. Sigue pendiente observar un evento `movimiento` nuevo en una prueba autorizada. Los campos `conectado` y `timestamp` proceden del backend y no acreditan la conexión del ESP8266 ni el movimiento físico.
+
+Chrome abrió `#monitoreo` sin clave bajo el origen de Pages. La vista previa sustituyó los recursos estáticos por los archivos de la rama. Los cinco GET de esta etapa y WSS llegaron al backend real. Se bloquearon localmente las lecturas automáticas de catálogos, fuera del alcance de esta prueba. Los indicadores mostraron WSS «En línea», API y RDS «Disponible». La tabla mostró los diez IDs exactos y presentó `AVANZAR_DERECHA` como «Avanzar a la derecha». La fecha sin zona `2026-11-11T18:22:33` se mostró como `11/11/2026 · 18:22:33`. Tras cerrar el socket localmente, la vista conservó las filas, volvió a conectar y releyó estado e historial con HTTP 200. Los 25 recursos cargaron sin HTTP 404 ni errores JavaScript. No hubo desbordamiento horizontal en 1440 × 1000, 320 × 568 ni 568 × 320.
+
+En localhost, Chrome cargó los recursos y WSS, pero bloqueó las lecturas REST por CORS. La interfaz indicó API «No disponible» y RDS «Sin verificar». La vista previa con el origen permitido de Pages confirmó REST y WSS reales. La versión pública de 4.2 queda pendiente de integración y verificación del artefacto desplegado.
+
+La revisión de código confirmó transacciones de solo lectura para las consultas públicas a RDS y una suscripción WSS sin despacho de comandos. Las operaciones de control requieren `X-API-Key`. La auditoría del backend de referencia documenta una brecha de autorización en mutaciones administrativas. Queda pendiente revisar esas protecciones en el backend y cotejar el código desplegado en EC2. Esta etapa se limitó a inspección estática para las rutas administrativas. [Auditoría HTTP del backend](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3792236cc4c07a3cbbd62c58d16221532e0c2f80/docs/auditoria_http.md)
+
+La revisión del PR detectó que `demo_error` ocultaba Detener en MONITOREO al terminar el seguimiento de la DEMO. La nueva prueba de Chrome reprodujo el fallo antes del cambio. Con la corrección, Detener sigue disponible para la sesión autorizada después del evento y de un HTTP 503 simulado. Un HTTP 200 retira la parada pendiente y conserva el error de ejecución. Las suites finales aprobaron **40 de 40 en Node** y **51 de 51 en Chrome**, con simulación o tráfico interceptado. La vista previa de escritorio también volvió a pasar con datos reales. Las pruebas de esta etapa no enviaron escrituras a AWS ni accionaron el vehículo.
+
 ## Práctica 4.1 · Evidencia histórica
 
 Este informe conserva los resultados y pendientes *históricos de la etapa local de preparación* del 7 de noviembre. Las columnas «Evidencia real pendiente» describen ese momento, no el estado actual. Consulta el [cierre de validación original](./validacion-funcional.md#resultados-finales) y la [ampliación de ocho direcciones](./validacion-funcional.md#ampliaci%C3%B3n-posterior-joystick-de-ocho-direcciones-09112026) para los resultados posteriores y los conteos automatizados más recientes.

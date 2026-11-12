@@ -95,6 +95,8 @@ async function interceptBackend(page, { serve = true, catalog = commandCatalog }
         await fixtures.beforeCatalogResponse();
         return fixtures.catalogAvailable ? json(fixtures.catalog) : route.abort();
       }
+      if (path === `${VEHICLE}/estado`) return json(null);
+      if (path === `${VEHICLE}/historial`) return json([]);
       if (path === `${VEHICLE}/demos`) return json([{
         id_demo: 21, id_vehiculo: 1, nombre: 'Circuito de prueba', descripcion: null, activo: true,
       }]);
@@ -560,6 +562,49 @@ test('consulta los pasos, espera eventos DEMO y coordina cancelar antes de DETEN
   expect(fixtures.posts.map(({ path, body }) => [path, body])).toEqual([
     [`${DEMO}/ejecutar`, null], [`${DEMO}/ejecutar`, null], [`${DEMO}/cancelar`, null],
     [`${DEMO}/ejecutar`, null], [`${DEMO}/cancelar`, null], [MOVEMENT, { id_comando: 11 }],
+  ]);
+  expect(fixtures.sentToSocket).toEqual([]);
+});
+
+test('conserva Detener en MONITOREO si una DEMO falla hasta recibir HTTP 200', async ({ page }) => {
+  const fixtures = await interceptBackend(page);
+  await page.goto(APP);
+  await enableControl(page);
+  await page.getByLabel('Seleccionar DEMO').selectOption('21');
+  await page.locator('#demo-start').click();
+  await expect(page.locator('#demo-http')).toContainText('HTTP 202 aceptado');
+  fixtures.emitDemo('demo_inicio');
+  fixtures.emitDemo('demo_movimiento', { ...step, conectado: false });
+  await expect(page.locator('#demo-progress')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Monitoreo', exact: true }).click();
+  const stop = page.locator('#stop');
+  await expect(stop).toBeVisible();
+  fixtures.emitDemo('demo_error', { mensaje: 'Error de prueba en la ejecución.' });
+  const demoStatus = page.locator('#demo-state');
+  await expect(demoStatus).toContainText('Error de ejecución observado por WSS');
+  await expect(stop).toBeVisible();
+  await expect(stop).toBeEnabled();
+
+  fixtures.stopStatus = 503;
+  await stop.click();
+  await expect(demoStatus).toContainText('Detener no se confirmó');
+  await expect(stop).toBeVisible();
+  await expect(stop).toBeEnabled();
+
+  fixtures.stopStatus = null;
+  fixtures.publishMovement = false;
+  await stop.click();
+  await expect(demoStatus).toContainText('Detener aceptado por HTTP 200');
+  await expect(demoStatus).not.toContainText('Evento WSS compatible');
+  await expect(stop).toBeHidden();
+  await page.getByRole('link', { name: 'Control', exact: true }).click();
+  await expect(demoStatus).toContainText('Error de ejecución observado por WSS');
+  await expect(stop).toBeVisible();
+  expect(fixtures.posts).toEqual([
+    { path: `${DEMO}/ejecutar`, body: null, key: KEY },
+    { path: MOVEMENT, body: { id_comando: 11 }, key: KEY },
+    { path: MOVEMENT, body: { id_comando: 11 }, key: KEY },
   ]);
   expect(fixtures.sentToSocket).toEqual([]);
 });

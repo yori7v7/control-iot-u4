@@ -255,9 +255,9 @@ export class DashboardView {
       ? `Movimiento ${state.progress.orden} · ${formatCommandName(state.progress.comando)}.`
       : null;
     const helper = state.stepsStatus === 'ready' && state.steps.length && !state.canStart ? canStart : null;
-    const cancelNote = state.phase === 'canceled' ? this.#demoStopNote(state.stop) : null;
+    const stopNote = state.stopPending || state.stop ? this.#demoStopNote(state.stop) : null;
     const status = formatCommandReferences(
-      [activeOther, state.message ?? helper ?? DEMO_IDLE, progress, cancelNote].filter(Boolean).join(' '));
+      [activeOther, state.message ?? helper ?? DEMO_IDLE, progress, stopNote].filter(Boolean).join(' '));
     const success = !busy && state.http?.phase !== 'error' &&
       (state.phase === 'completed' || (state.phase === 'canceled' && state.stop?.phase === 'accepted'));
 
@@ -273,7 +273,7 @@ export class DashboardView {
 
     this.#setDemoHttp(httpText);
     this.#setDemoState(status, state.phase);
-    this.element('demo-stop-warning').hidden = !cancelNote || state.stop?.phase === 'accepted';
+    this.element('demo-stop-warning').hidden = !state.stopPending;
     const bar = this.element('demo-progress');
     const expected = state.lastEvent?.id_demo === state.selectedId ? state.steps.length : 0;
     bar.hidden = !state.observedSteps || !expected;

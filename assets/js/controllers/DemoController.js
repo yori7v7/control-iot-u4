@@ -48,9 +48,15 @@ export class DemoController {
     return Boolean(this.#starting || this.#canceling);
   }
 
+  get #stopTarget() {
+    const run = this.#terminal;
+    return !this.#tracked.size && (run?.phase === 'canceled' || run?.stopRequired) ? run : null;
+  }
+
   get state() {
     const active = [...this.#tracked.values()].at(-1);
     const run = active ?? this.#terminal;
+    const stopTarget = this.#stopTarget;
     const selected = this.#catalog.find(demo => demo.id === this.#selectedId);
     return {
       catalog: this.#catalog, selectedId: this.#selectedId, steps: this.#steps,
@@ -59,6 +65,7 @@ export class DemoController {
       phase: run?.phase ?? 'idle', message: run?.message ?? null,
       progress: run?.progress ?? null, observedSteps: run?.seen.size ?? 0, lastEvent: this.#lastEvent,
       http: this.#http, stop: run?.stop ?? null,
+      stopPending: Boolean(stopTarget && stopTarget.stop?.phase !== 'accepted'),
       canStart: Boolean(!this.busy && selected?.active && this.#stepsStatus === 'ready' &&
         this.#steps.length && this.#canControl() && this.#canStart()),
       canCancel: Boolean((active || this.#starting) && !this.#canceling && this.#canControl()),
@@ -166,10 +173,10 @@ export class DemoController {
   }
 
   observeStop() {
-    const terminal = this.#terminal;
-    if (terminal?.phase !== 'canceled' || this.#tracked.size) return null;
+    const terminal = this.#stopTarget;
+    if (!terminal) return null;
 
-    // Bind the response to the cancellation visible when the STOP is dispatched.
+    // Bind the response to the terminal run visible when STOP is dispatched.
     return result => {
       if (this.#terminal !== terminal || (terminal.stop?.phase === 'accepted' && result.phase !== 'accepted')) return;
       terminal.stop = result;
@@ -243,6 +250,7 @@ export class DemoController {
       } else {
         this.#terminal = { id: event.id_demo, token: Symbol(), phase, message, seen: new Set() };
       }
+      if (type === 'demo_error') this.#terminal.stopRequired = true;
     } else if (!run && type === 'demo_movimiento' && this.#terminal?.id === event.id_demo &&
       this.#terminal.awaitingCancelEvent) {
       // On the same socket, a buffered step may precede the terminal WSS event.

@@ -117,9 +117,8 @@ async function start() {
     });
     const inMonitoring = currentView === 'monitoreo';
     const demoState = demo.state;
-    const stopPending = demoState.phase === 'canceled' && demoState.stop?.phase !== 'accepted';
     view.element('open-session').hidden = simulation || inMonitoring;
-    view.element('stop').hidden = inMonitoring && !(canStop() && (commands.mayBeMoving || sessionBusy() || stopPending));
+    view.element('stop').hidden = inMonitoring && !(canStop() && (commands.mayBeMoving || sessionBusy() || demoState.stopPending));
     view.setCommand(commands.state);
     view.setDemo(demoState, {
       loading, busy: demo.busy,
