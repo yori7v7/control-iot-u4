@@ -1,4 +1,6 @@
 import { BACKEND_DETAILS, CONFIG } from '../config.js';
+import { MovementHistoryEntry } from '../models/MovementHistoryEntry.js';
+import { VehicleState } from '../models/VehicleState.js';
 import {
   isCode, isEntityId, isMilliseconds, isName, isNullableTimestamp, isRecord,
 } from '../models/validation.js';
@@ -115,6 +117,28 @@ export class ApiClient {
     });
   }
 
+  async getVehicleState({ signal } = {}) {
+    const state = await this.#request(`${this.#vehiclePath}/estado`, {
+      signal,
+      validate: data => data === null || VehicleState.accepts(data, this.#vehicleId),
+    });
+    return state === null ? null : new VehicleState(state, this.#vehicleId);
+  }
+
+  async getMovementHistory({ signal } = {}) {
+    const rows = await this.#request(`${this.#vehiclePath}/historial`, {
+      signal,
+      decode: async response => MovementHistoryEntry.decode(await response.text()),
+      validate: Array.isArray,
+    });
+    try {
+      return MovementHistoryEntry.forVehicle(rows, this.#vehicleId);
+    } catch (error) {
+      if (!(error instanceof TypeError)) throw error;
+      throw new ApiError('format', 'La respuesta de la API no coincide con el formato esperado.', 200);
+    }
+  }
+
   getCommands() {
     return this.#request(`${this.#vehiclePath}/comandos`, { validate: Array.isArray });
   }
@@ -169,6 +193,7 @@ export class ApiClient {
 
   async #request(path, {
     method = 'GET', body, signal, timeoutMs = this.#timeoutMs, expectedStatus = 200, validate,
+    decode = response => response.json(),
   }) {
     const headers = { Accept: 'application/json' };
     if (method === 'POST') {
@@ -195,7 +220,7 @@ export class ApiClient {
       });
       let data;
       try {
-        data = await response.json();
+        data = await decode(response);
       } catch (error) {
         if (controller.signal.aborted || !(error instanceof SyntaxError)) throw error;
       }

@@ -35,6 +35,17 @@ El UUID `id_evento` permite deduplicar publicaciones. El backend intenta publica
 
 El 202 de DEMO indica que el backend preparó la secuencia y creó la tarea. El progreso procede de WSS, que publica por vehículo y DEMO sin un identificador compartido por ejecución. El backend reserva una DEMO por vehículo. La ruta de movimiento individual opera sin consultar esa reserva, por lo que el frontend coordina sus propias órdenes. Cancelar interrumpe las esperas y aguarda la salida de una transacción en curso. La cancelación lógica carece de una orden DETENER implícita. La secuencia se ejecuta en el backend y sus pasos se mantienen fuera del historial de movimientos individuales. [Gestor de ejecución](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/2bc84f3b8282fd86a08093d7e6055b0ac67fd396/app/execution/manager.py) · [Servicio de DEMO](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/2bc84f3b8282fd86a08093d7e6055b0ac67fd396/app/services/demo_execution.py)
 
+## Lecturas de la práctica 4.2
+
+La auditoría de la etapa 1 del 11 de noviembre de 2026 comprobó HTTP 200 desde el origen de GitHub Pages para `GET /`, `GET /health/database`, `GET V`, `GET V/estado` y `GET V/historial`. El handshake WSS respondió HTTP 101 y entregó `estado_actual`. El código de referencia del backend para esta etapa es `3792236`, que incluye el CORS para Pages. [Aplicación FastAPI revisada](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3792236cc4c07a3cbbd62c58d16221532e0c2f80/app/main.py#L61)
+
+| Lectura | Contrato |
+| --- | --- |
+| `GET V/estado` | HTTP 200 con `null` o con `id_vehiculo`, `vehiculo`, `id_comando`, `comando`, `codigo`, `conectado` y `fecha_actualizacion`. El comando, su ID, el código y la fecha pueden ser nulos. La instantánea carece de origen. |
+| `GET V/historial` | HTTP 200 con una lista de hasta diez filas. Cada fila tiene `id_historial`, `id_vehiculo`, `comando`, `codigo`, `fecha_hora` y `origen`. Comando, código y fecha pueden ser nulos. El servicio limita la respuesta a diez y conserva el orden del procedimiento por fecha y por ID descendentes. |
+
+El cliente conserva el ID de historial como una cadena decimal exacta. Cuando el navegador no puede recuperar el literal JSON, acepta solo los IDs representables como enteros seguros. Las fechas sin zona se presentan con sus componentes originales. Las filas de la tabla se obtienen únicamente de REST. `movimiento` invalida estado e historial. `demo_movimiento` y los hitos terminales de DEMO invalidan estado. Una reconexión relee ambos recursos para recuperar publicaciones perdidas. La tabla conserva su origen de RDS incluso si una publicación WSS falla o si la modificación se realizó fuera del publicador. [Modelo de estado](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3792236cc4c07a3cbbd62c58d16221532e0c2f80/app/models/state.py) · [Modelo de historial](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3792236cc4c07a3cbbd62c58d16221532e0c2f80/app/models/history.py) · [Servicio de historial](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3792236cc4c07a3cbbd62c58d16221532e0c2f80/app/services/history.py)
+
 ## Verificación local del código de referencia
 
 En una copia temporal con las dependencias del backend se ejecutaron las suites siguientes. La auditoría compone OpenAPI con los routers y bloquea el acceso a la configuración y la base de datos. Estas comprobaciones usan el código publicado y dobles de prueba.

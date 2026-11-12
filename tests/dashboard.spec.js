@@ -211,7 +211,7 @@ test('los doce botones permanecen bloqueados mientras carga y con un catálogo v
     pending.resolve();
   }
   await expect(page.locator('#control-mode')).toHaveText(/sin comandos activos/i);
-  await expect(page.locator('#notice-detail')).toContainText('DETENER no está activo');
+  await expect(page.locator('#notice-detail')).toContainText('Detener no está activo');
   await enableControl(page);
   await expectBlockedCommands(page);
   await expect(page.locator('#stop')).toBeDisabled();
@@ -240,7 +240,7 @@ test('recupera el catálogo dinámico y bloquea los botones sin conexión, inact
   await enableControl(page);
   await expect(enabled).toHaveCount(12);
   await left.click();
-  await expect(page.locator('#last-command')).toHaveText('AVANZAR_IZQUIERDA · ID 405');
+  await expect(page.locator('#last-command')).toHaveText('Avanzar a la izquierda · ID 405');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
 
   fixtures.catalogAvailable = false;
@@ -262,7 +262,7 @@ test('recupera el catálogo dinámico y bloquea los botones sin conexión, inact
   const unavailable = page.locator('[data-command="AVANZAR_IZQUIERDA"], [data-command="RETROCEDER_DERECHA"], [data-command="VELOCIDAD"], [data-command="CLAXON"]');
   await expectBlockedCommands(page, unavailable, 4);
   await page.locator('[data-command="LUCES"]').click();
-  await expect(page.locator('#last-command')).toHaveText('LUCES · ID 771');
+  await expect(page.locator('#last-command')).toHaveText('Luces · ID 771');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
 
   fixtures.reachable = false;
@@ -278,7 +278,7 @@ test('recupera el catálogo dinámico y bloquea los botones sin conexión, inact
   await expect(api).toHaveText('Disponible');
   await expect(enabled).toHaveCount(12);
   await page.locator('#stop').click();
-  await expect(page.locator('#last-command')).toHaveText('DETENER · ID 11');
+  await expect(page.locator('#last-command')).toHaveText('Detener · ID 11');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
   expect(fixtures.posts.map(({ body }) => body.id_comando)).toEqual([405, 771, 11]);
   expect(fixtures.requests.filter(request => request.method === 'POST')).toHaveLength(3);
@@ -304,7 +304,7 @@ test('carga recursos en el subdirectorio y opera por teclado en simulación sin 
   expect((await request.get(`${APP}tests/dashboard.spec.js`)).status()).toBe(404);
 
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('link', { name: 'Saltar a los controles' })).toBeFocused();
+  await expect(page.getByRole('link', { name: 'Saltar al contenido' })).toBeFocused();
   const joystick = page.getByRole('group', { name: 'Joystick del vehículo' });
   await joystick.focus();
   await page.keyboard.down('ArrowUp');
@@ -428,10 +428,14 @@ test('el joystick deduplica dirección y DETENER reemplaza una orden pendiente',
 
 test('el joystick envía las ocho direcciones con los IDs del catálogo y se detiene al soltar', async ({ page }) => {
   const sectors = [
-    [0, -1, 'AVANZAR', 22, 1], [1, -1, 'AVANZAR_DERECHA', 309, 9],
-    [1, 0, 'DERECHA', 66, 8], [1, 1, 'RETROCEDER_DERECHA', 410, 10],
-    [0, 1, 'RETROCEDER', 302, 2], [-1, 1, 'RETROCEDER_IZQUIERDA', 306, 6],
-    [-1, 0, 'IZQUIERDA', 44, 4], [-1, -1, 'AVANZAR_IZQUIERDA', 405, 5],
+    [0, -1, 'AVANZAR', 22, 1, 'Avanzar'],
+    [1, -1, 'AVANZAR_DERECHA', 309, 9, 'Avanzar a la derecha'],
+    [1, 0, 'DERECHA', 66, 8, 'Derecha'],
+    [1, 1, 'RETROCEDER_DERECHA', 410, 10, 'Retroceder a la derecha'],
+    [0, 1, 'RETROCEDER', 302, 2, 'Retroceder'],
+    [-1, 1, 'RETROCEDER_IZQUIERDA', 306, 6, 'Retroceder a la izquierda'],
+    [-1, 0, 'IZQUIERDA', 44, 4, 'Izquierda'],
+    [-1, -1, 'AVANZAR_IZQUIERDA', 405, 5, 'Avanzar a la izquierda'],
   ];
   const extraCommands = sectors.filter(([, , , id]) => id > 100)
     .map(([, , nombre, id_comando, codigo]) => ({
@@ -451,18 +455,21 @@ test('el joystick envía las ocho direcciones con los IDs del catálogo y se det
 
   await page.mouse.move(x, y);
   await page.mouse.down();
-  for (const [dx, dy, name, id, code] of sectors) {
+  for (const [dx, dy, name, id, code, label] of sectors) {
     await page.mouse.move(x + dx * travel, y + dy * travel);
     await expect(joystick).toHaveAttribute('data-direction', name);
-    await expect(command).toHaveText(`${name} · ID ${id}`);
+    await expect(page.locator('#joystick-direction')).toHaveText(label);
+    await expect(command).toHaveText(`${label} · ID ${id}`);
     await expect(state).toContainText('HTTP 200');
-    await expect(page.locator('#event-detail')).toContainText(`${name} · código ${code}`);
+    await expect(page.locator('#event-detail')).toContainText(`${label} · código ${code}`);
   }
   await page.mouse.up();
   await expect(joystick).toHaveAttribute('data-direction', '');
   await expect(page.locator('#joystick-direction')).toContainText(/neutral/i);
-  await expect(command).toHaveText('DETENER · ID 11');
+  await expect(command).toHaveText('Detener · ID 11');
   await expect(state).toContainText('HTTP 200');
+  await expect(page.locator('#control-receipt-command')).toHaveText('Detener · ID 11');
+  await expect(page.locator('#control-receipt-status')).toContainText('HTTP 200');
   expect(fixtures.posts.map(({ body }) => body.id_comando)).toEqual([...sectors.map(([, , , id]) => id), 11]);
   expect(fixtures.sentToSocket).toEqual([]);
 });
@@ -476,19 +483,20 @@ test('la simulación muestra iconos para las nuevas diagonales y responde sin co
   const symbols = await sprite.text();
 
   for (const [label, name, id, code, icon] of [
-    ['Avanzar e izquierda', 'AVANZAR_IZQUIERDA', 101, 5, 'diagonal-up-left'],
-    ['Retroceder y derecha', 'RETROCEDER_DERECHA', 102, 10, 'diagonal-down-right'],
+    ['Avanzar a la izquierda', 'AVANZAR_IZQUIERDA', 101, 5, 'diagonal-up-left'],
+    ['Retroceder a la derecha', 'RETROCEDER_DERECHA', 102, 10, 'diagonal-down-right'],
   ]) {
     const button = page.getByRole('button', { name: label });
+    await expect(button).toHaveAttribute('data-command', name);
     await expect(button.locator('use')).toHaveAttribute('href', `./assets/icons.svg#${icon}`);
     expect(symbols).toContain(`id="${icon}"`);
     await button.click();
-    await expect(page.locator('#last-command')).toHaveText(`${name} · ID ${id}`);
+    await expect(page.locator('#last-command')).toHaveText(`${label} · ID ${id}`);
     await expect(page.locator('#command-state')).toContainText('HTTP 200');
-    await expect(page.locator('#event-detail')).toContainText(`${name} · código ${code}`);
+    await expect(page.locator('#event-detail')).toContainText(`${label} · código ${code}`);
   }
   await page.locator('#stop').click();
-  await expect(page.locator('#last-command')).toHaveText('DETENER · ID 1');
+  await expect(page.locator('#last-command')).toHaveText('Detener · ID 1');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
   expect(fixtures.requests).toEqual([]);
   expect(fixtures.sockets).toEqual([]);
@@ -555,14 +563,14 @@ test('simulación conserva la DEMO cancelada y actualiza el aviso tras DETENER',
   await page.getByLabel('Seleccionar DEMO').selectOption('1');
   await page.locator('#demo-start').click();
   const state = page.locator('#demo-state');
-  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await expect(state).toContainText('Movimiento 1 · Avanzar');
   await page.locator('#demo-cancel').click();
-  await expect(state).toContainText('Usa DETENER para enviar una orden de parada.');
+  await expect(state).toContainText('Usa Detener para enviar una orden de parada.');
   await page.locator('#stop').click();
   await expect(state).toContainText('Cancelación observada por WSS.');
-  await expect(state).toContainText('Movimiento 1 · AVANZAR');
-  await expect(state).toContainText('DETENER aceptado por HTTP 200. Evento WSS compatible recibido.');
-  await expect(state).not.toContainText('Usa DETENER');
+  await expect(state).toContainText('Movimiento 1 · Avanzar');
+  await expect(state).toContainText('Detener aceptado por HTTP 200. Evento WSS compatible recibido.');
+  await expect(state).not.toContainText('Usa Detener');
   await page.clock.fastForward(4100);
   await expect(state).toHaveText('Sin DEMO en ejecución.');
   await expect(page.locator('#demo-http')).toBeHidden();
@@ -574,8 +582,8 @@ test('simulación conserva la DEMO cancelada y actualiza el aviso tras DETENER',
   await page.getByText('Último resultado', { exact: true }).click();
   const summary = page.locator('#demo-last-result-text');
   await expect(summary).toContainText('Cancelación REST · HTTP 200 aceptado.');
-  await expect(summary).toContainText('Cancelación observada por WSS. Movimiento 1 · AVANZAR.');
-  await expect(summary).toContainText('DETENER aceptado por HTTP 200. Evento WSS compatible recibido.');
+  await expect(summary).toContainText('Cancelación observada por WSS. Movimiento 1 · Avanzar.');
+  await expect(summary).toContainText('Detener aceptado por HTTP 200. Evento WSS compatible recibido.');
 });
 
 test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una coincidencia', async ({ page }) => {
@@ -589,9 +597,9 @@ test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una 
   fixtures.emitDemo('demo_inicio');
   fixtures.emitDemo('demo_movimiento', { ...step, conectado: false });
   const state = page.locator('#demo-state');
-  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await expect(state).toContainText('Movimiento 1 · Avanzar');
   await page.locator('#demo-cancel').click();
-  await expect(state).toContainText('Usa DETENER');
+  await expect(state).toContainText('Usa Detener');
   await expect(page.locator('#demo-http')).toContainText('Cancelación REST · HTTP 200');
 
   fixtures.socketAvailable = false;
@@ -599,9 +607,9 @@ test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una 
   await expect(page.locator('#ws-indicator')).toContainText('Reconectando');
   fixtures.stopStatus = 503;
   await page.locator('#stop').click();
-  await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+  await expect(state).toContainText('Detener no se confirmó. Usa Detener');
   await page.clock.fastForward(4100);
-  await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+  await expect(state).toContainText('Detener no se confirmó. Usa Detener');
   await expect(page.locator('#demo-last-result')).toBeHidden();
   fixtures.stopStatus = null;
 
@@ -612,20 +620,20 @@ test('un DETENER fallido conserva el aviso y un HTTP 200 sin WSS no inventa una 
     await expect(page.locator('#command-state')).toContainText('Esperando respuesta HTTP.');
     await page.clock.fastForward(CONFIG.requestTimeoutMs + 100);
     await expect(page.locator('#command-state')).toContainText('agotó el tiempo');
-    await expect(state).toContainText('DETENER no se confirmó. Usa DETENER');
+    await expect(state).toContainText('Detener no se confirmó. Usa Detener');
   } finally {
     timeoutGate.resolve();
   }
   fixtures.beforeMovementResponse = async () => {};
   await page.locator('#stop').click();
-  await expect(state).toContainText('DETENER aceptado por HTTP 200.');
-  await expect(state).toContainText('Cancelación observada por WSS. Movimiento 1 · AVANZAR.');
+  await expect(state).toContainText('Detener aceptado por HTTP 200.');
+  await expect(state).toContainText('Cancelación observada por WSS. Movimiento 1 · Avanzar.');
   await expect(state).not.toContainText('Evento WSS compatible recibido.');
-  await expect(state).not.toContainText('Usa DETENER');
+  await expect(state).not.toContainText('Usa Detener');
   const requestCount = fixtures.requests.length;
   await page.clock.fastForward(4100);
   await expect(state).toHaveText('Sin DEMO en ejecución.');
-  await expect(page.locator('#demo-last-result-text')).toContainText('DETENER aceptado por HTTP 200.');
+  await expect(page.locator('#demo-last-result-text')).toContainText('Detener aceptado por HTTP 200.');
   await expect(page.locator('#demo-last-result-text')).not.toContainText('Evento WSS compatible recibido.');
   expect(fixtures.requests).toHaveLength(requestCount);
 
@@ -649,17 +657,17 @@ test('el temporizador anterior no afecta a otra DEMO y el cierre normal conserva
   await page.locator('#demo-cancel').click();
   await expect(page.locator('#demo-http')).toContainText('Cancelación REST · HTTP 200');
   await page.locator('#stop').click();
-  await expect(state).toContainText('DETENER aceptado por HTTP 200.');
+  await expect(state).toContainText('Detener aceptado por HTTP 200.');
 
   await start.click();
   await expect(page.locator('#demo-http')).toContainText('Inicio REST · HTTP 202');
   fixtures.emitDemo('demo_inicio');
   fixtures.emitDemo('demo_movimiento', { ...step, conectado: false });
-  await expect(state).toContainText('Movimiento 1 · AVANZAR');
+  await expect(state).toContainText('Movimiento 1 · Avanzar');
   await page.clock.fastForward(4100);
-  await expect(state).toContainText('Paso observado por WSS. Movimiento 1 · AVANZAR.');
+  await expect(state).toContainText('Paso observado por WSS. Movimiento 1 · Avanzar.');
   await expect(page.locator('#demo-progress')).toBeVisible();
-  await expect(page.locator('#demo-last-result-text')).toContainText('DETENER aceptado por HTTP 200.');
+  await expect(page.locator('#demo-last-result-text')).toContainText('Detener aceptado por HTTP 200.');
 
   fixtures.emitDemo('demo_fin');
   await expect(state).toContainText('Finalización observada por WSS.');
@@ -667,7 +675,7 @@ test('el temporizador anterior no afecta a otra DEMO y el cierre normal conserva
   await expect(state).toHaveText('Sin DEMO en ejecución.');
   await expect(page.locator('#demo-progress')).toBeHidden();
   await expect(page.locator('#demo-last-result-text')).toContainText('Finalización observada por WSS.');
-  await expect(page.locator('#demo-last-result-text')).not.toContainText('DETENER');
+  await expect(page.locator('#demo-last-result-text')).not.toContainText('Detener');
 
   await start.click();
   await expect(page.locator('#demo-http')).toContainText('Inicio REST · HTTP 202');
@@ -691,7 +699,7 @@ test('un WSS compatible tardío actualiza solo el resumen cuando ya volvió el e
   await expect(page.locator('#demo-http')).toContainText('Cancelación REST · HTTP 200');
   const state = page.locator('#demo-state');
   await page.locator('#stop').click();
-  await expect(state).toContainText('DETENER aceptado por HTTP 200.');
+  await expect(state).toContainText('Detener aceptado por HTTP 200.');
   await page.clock.fastForward(4100);
   await expect(state).toHaveText('Sin DEMO en ejecución.');
   fixtures.emitMovement();

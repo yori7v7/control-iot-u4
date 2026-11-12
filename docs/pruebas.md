@@ -1,4 +1,14 @@
-# Validación de la práctica 4.1
+# Validación de las prácticas 4.1 y 4.2
+
+## Práctica 4.2 · MONITOREO
+
+Las suites de Node y Chrome de esta etapa usan dobles de prueba o tráfico interceptado. Se cubren los contratos de estado e historial, valores nulos, más de diez filas, fechas sin zona, IDs int64 exactos y ausencia de credenciales en lecturas. Las pruebas de integración ejercitan navegación y apertura directa, una conexión WSS compartida, deduplicación, otros vehículos, movimientos publicados por otro cliente, reconexión, respuestas tardías, fallos transitorios y la exclusión de pasos de DEMO del historial.
+
+El resultado local fue de **40 de 40 en Node** y **50 de 50 en Chrome**. Se comprobó también que Detener continúa disponible al cambiar de vista con una parada pendiente tras cancelar una DEMO.
+
+La regresión de CONTROL conserva las 18 dimensiones de la matriz, los comandos en estado conectado y desconectado, el joystick, la parada, la DEMO y la autorización. La vista MONITOREO se comprueba en teléfono emulado vertical y horizontal. Las pruebas estáticas y de navegador ejercitan Bootstrap, módulos ES, el sprite y el favicon con las rutas bajo `/control-iot-u4/assets/`. La comprobación del artefacto publicado de 4.2 queda pendiente de la revisión del pull request.
+
+## Práctica 4.1 · Evidencia histórica
 
 Este informe conserva los resultados y pendientes *históricos de la etapa local de preparación* del 7 de noviembre. Las columnas «Evidencia real pendiente» describen ese momento, no el estado actual. Consulta el [cierre de validación original](./validacion-funcional.md#resultados-finales) y la [ampliación de ocho direcciones](./validacion-funcional.md#ampliacion-posterior-joystick-de-ocho-direcciones-09112026) para los resultados posteriores y los conteos automatizados más recientes.
 
