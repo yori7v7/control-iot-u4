@@ -82,7 +82,6 @@
       </button>
     </section>
     <p class="notice deck-notice" id="notice" role="status" hidden></p>
-    <p id="command-alert" class="visually-hidden" role="status"></p>
 
     <div class="dashboard" id="control-view">
       <section class="drive-panel" aria-labelledby="drive-title">
@@ -150,19 +149,16 @@
               <button class="btn btn-quiet" id="demo-detail-toggle" type="button" popovertarget="demo-detail" title="Detalle de DEMO">
                 <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#list"/></svg><span class="tool-label">Detalle DEMO</span>
               </button>
-              <button class="btn btn-quiet" id="activity-toggle" type="button" popovertarget="activity-pane" title="Actividad de control">
-                <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg><span class="tool-label">Diagnóstico</span><span class="attention-label">Error</span>
-              </button>
             </div>
           </div>
         </section>
 
-        <section class="control-receipt" aria-labelledby="control-receipt-title">
-          <div class="panel-heading"><h2 id="control-receipt-title">Confirmación de control</h2></div>
-          <div class="control-receipt-body">
-            <strong id="control-receipt-command">Sin comandos solicitados</strong>
-            <p id="control-receipt-status" class="muted" role="status">Esperando una acción manual.</p>
-          </div>
+        <section class="control-receipt" id="control-receipt" aria-labelledby="control-receipt-title">
+          <h2 id="control-receipt-title" class="visually-hidden">Confirmación de control</h2>
+          <strong id="last-command">Sin comandos solicitados</strong>
+          <p id="command-state" role="status">Esperando una acción manual.</p>
+          <p id="receipt-wss" hidden>WSS · <span id="last-event"></span> <span id="event-detail"></span></p>
+          <p id="event-correlation" hidden></p>
         </section>
       </div>
     </div>
@@ -184,29 +180,40 @@
         </div>
         <div class="monitor-evidence">
           <p class="monitor-message" id="monitor-realtime" role="status">Esperando WSS</p>
-          <p class="monitor-message" id="monitor-event" aria-live="polite">Sin eventos recibidos.</p>
           <p class="monitor-limit">Ejecución física sin verificar.</p>
+          <p class="monitor-message" id="monitor-event" aria-live="polite">Sin eventos recibidos.</p>
         </div>
       </div>
 
       <section class="monitor-history" aria-labelledby="monitor-history-title">
-        <div class="monitor-heading">
+        <div class="monitor-heading" id="monitor-history-heading">
           <div>
-            <h3 id="monitor-history-title">Historial de movimientos</h3>
+            <h3 id="monitor-history-title" tabindex="-1">Historial de movimientos</h3>
             <p id="monitor-history-status" role="status">Consultando historial…</p>
+            <p class="visually-hidden" id="monitor-history-description">Hasta diez movimientos persistidos, del más reciente al más antiguo. Las horas sin zona se muestran tal como las reporta la API.</p>
           </div>
           <button class="btn btn-quiet icon-button" id="monitor-refresh" type="button" aria-label="Actualizar monitoreo" title="Actualizar monitoreo">
             <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#refresh"/></svg>
           </button>
         </div>
-        <div class="monitor-table-scroll" role="region" aria-labelledby="monitor-history-title" tabindex="0">
-          <table class="monitor-table">
-            <caption class="visually-hidden">Hasta diez movimientos persistidos, del más reciente al más antiguo</caption>
+        <div class="monitor-table-region" id="monitor-history-table">
+          <table class="monitor-table" aria-labelledby="monitor-history-title" aria-describedby="monitor-history-description">
             <thead><tr><th scope="col">Fecha y hora</th><th scope="col">Movimiento</th><th scope="col">Origen</th></tr></thead>
             <tbody id="monitor-history-body"></tbody>
           </table>
         </div>
-        <p class="monitor-limit">Las horas sin zona se muestran tal como las reporta la API.</p>
+        <nav class="monitor-pagination" id="monitor-history-pagination" aria-label="Páginas del historial" hidden>
+          <button class="btn btn-quiet" id="monitor-history-prev" type="button" aria-controls="monitor-history-body" aria-disabled="true">
+            <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#left"/></svg> Anterior
+          </button>
+          <div class="monitor-page-status" role="status">
+            <span id="monitor-history-page"></span>
+            <span class="monitor-page-new" id="monitor-history-new" hidden>Nuevos movimientos</span>
+          </div>
+          <button class="btn btn-quiet" id="monitor-history-next" type="button" aria-controls="monitor-history-body" aria-disabled="true">
+            Siguiente <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#right"/></svg>
+          </button>
+        </nav>
       </section>
     </section>
   </main>
@@ -218,29 +225,6 @@
       <button class="btn btn-quiet" id="views-vehicle-detail" type="button" aria-controls="vehicle-detail">Información del vehículo</button>
     </div>
   </nav>
-
-  <section class="activity-pane inspector" id="activity-pane" popover aria-labelledby="event-title">
-    <div class="panel-heading">
-      <h2 id="event-title"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#activity"/></svg>Diagnóstico de control</h2>
-      <button class="btn btn-quiet icon-button" id="activity-close" type="button" popovertarget="activity-pane" popovertargetaction="hide" aria-label="Cerrar diagnóstico">
-        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#close"/></svg>
-      </button>
-    </div>
-    <div class="activity-body inspector-body" tabindex="0">
-      <p class="notice" id="notice-detail" hidden></p>
-      <div class="activity-item">
-        <span class="activity-kind">SOLICITUD REST</span>
-        <strong id="last-command">Sin comandos solicitados</strong>
-        <span class="muted" id="command-state" role="status">Esperando una acción manual.</span>
-      </div>
-      <div class="activity-item">
-        <span class="activity-kind">EVENTO WSS</span>
-        <strong id="last-event">Sin eventos recibidos</strong>
-        <span class="muted" id="event-detail"></span>
-      </div>
-      <p class="muted event-correlation" id="event-correlation" hidden></p>
-    </div>
-  </section>
 
   <section class="inspector" id="demo-detail" popover aria-labelledby="demo-detail-title">
     <div class="panel-heading">

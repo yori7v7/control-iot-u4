@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import axe from 'axe-core';
 import { formatCommandName } from '../js/ui/commandLabels.js';
+import { viewports } from './viewport-matrix.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;
@@ -16,20 +17,7 @@ const OFFLINE_ESSENTIAL = [
   ...ESSENTIAL.filter(selector => !['#exit-simulation', '#simulation-banner'].includes(selector)),
   '#open-session', '#control-mode',
 ];
-const INSPECTORS = ['#activity-toggle', '#demo-detail-toggle', '#vehicle-detail-toggle', '#views-toggle'];
-
-const viewports = [
-  {
-    group: 'teléfono vertical', mobile: true,
-    sizes: [[320, 568], [360, 640], [375, 667], [390, 844], [414, 896], [430, 932]],
-  },
-  {
-    group: 'teléfono horizontal', mobile: true,
-    sizes: [[568, 320], [640, 360], [667, 375], [740, 360], [844, 390], [896, 414], [932, 430]],
-  },
-  { group: 'tableta', mobile: true, sizes: [[768, 1024], [1024, 768]] },
-  { group: 'escritorio', mobile: false, sizes: [[1280, 720], [1366, 768], [1920, 1080]] },
-];
+const INSPECTORS = ['#demo-detail-toggle', '#vehicle-detail-toggle', '#views-toggle'];
 
 async function isolate(page, baseURL) {
   const origin = new URL(baseURL).origin;
@@ -236,17 +224,13 @@ test.describe('Cambios durante la operación', () => {
       view.setCommand({ command: { name: 'RETROCEDER_DERECHA', id: 102 }, phase: 'error', message: messages.command });
     }, messages);
     await expect(page.locator('#notice')).toBeVisible();
-    await auditLayout(page, { essential: [...ESSENTIAL, '#notice', '#activity-toggle', '#views-toggle'], optional: ['#demo-detail-toggle'] });
-
-    await page.locator('#activity-toggle').tap();
-    const activity = page.locator('#activity-pane');
-    await expect(activity).toBeVisible();
-    await expect(activity.locator('#notice-detail')).toHaveText(messages.alert);
-    await expect(activity.locator('#command-state')).toContainText(messages.command);
-    await auditLayout(page, { critical: ['#activity-close', '#stop'], essential: ['#activity-close', '#stop'], optional: [] });
+    const status = ['#notice', '#control-receipt', '#command-state'];
+    await expect(page.getByRole('button', { name: /diagnóstico/i })).toHaveCount(0);
+    await expect(page.locator('#activity-pane')).toHaveCount(0);
+    await expect(page.locator('#notice')).toHaveText(messages.alert);
+    await expect(page.locator('#command-state')).toContainText(messages.command);
+    await auditLayout(page, { essential: [...ESSENTIAL, ...status, '#views-toggle'], optional: ['#demo-detail-toggle'] });
     await auditAccessibility(page);
-    await page.locator('#activity-close').tap();
-    await expect(activity).toBeHidden();
 
     await page.locator('#views-toggle').tap();
     await page.locator('#views-vehicle-detail').tap();
@@ -271,14 +255,13 @@ test.describe('Cambios durante la operación', () => {
     await page.locator('#demo-detail-close').tap();
     await auditLayout(page);
     await page.setViewportSize({ width: 320, height: 568 });
-    const activityButton = page.locator('#activity-toggle');
-    await expect(activityButton).toContainText('Error');
-    await expect(activityButton.locator('.attention-label')).toBeVisible();
-    await auditLayout(page, { essential: [...ESSENTIAL, '#activity-toggle'] });
-    await activityButton.tap();
-    await expect(activity.locator('#notice-detail')).toHaveText(messages.alert);
-    await expect(activity.locator('#command-state')).toContainText(messages.command);
-    await auditLayout(page, { critical: ['#activity-close', '#stop'], essential: ['#activity-close', '#stop'], optional: [] });
+    await expect(page.locator('#notice')).toHaveText(messages.alert);
+    await expect(page.locator('#command-state')).toContainText(messages.command);
+    await auditLayout(page, { essential: [...ESSENTIAL, ...status] });
+    for (const selector of ['#notice', '#command-state']) {
+      expect(await page.locator(selector).evaluate(element =>
+        element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight)).toBe(true);
+    }
     expect(errors).toEqual([]);
   });
 

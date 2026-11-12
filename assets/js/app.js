@@ -158,7 +158,7 @@ async function start() {
         [vehicleResult, 'vehículo'], [commandsResult, 'comandos'], [demosResult, 'DEMO'],
       ].filter(([result]) => result.status === 'rejected').map(([, label]) => label);
       view.setNotice(failed.length
-        ? `No se pudo actualizar: ${failed.join(', ')}. Comprueba la conexión y usa Actualizar para volver a consultar.`
+        ? `Falló la consulta de ${failed.join(', ')}. Comprueba la conexión y pulsa Actualizar.`
         : !commands.getCommand('DETENER') ? 'DETENER no está activo en el catálogo. Los movimientos están bloqueados.' : '',
       Boolean(failed.length || !commands.getCommand('DETENER')));
     }).finally(() => {
@@ -197,7 +197,7 @@ async function start() {
       if (link.dataset.view === next) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }
-    for (const id of ['view-navigation', 'vehicle-detail', 'activity-pane', 'demo-detail']) {
+    for (const id of ['view-navigation', 'vehicle-detail', 'demo-detail']) {
       view.element(id).hidePopover?.();
     }
 

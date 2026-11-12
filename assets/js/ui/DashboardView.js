@@ -14,8 +14,42 @@ const CARDINAL_DIRECTIONS = ['AVANZAR', 'IZQUIERDA', 'DERECHA', 'RETROCEDER'];
 const EXTRAS = {
   LUCES: 'lights',
   VELOCIDAD: 'speed',
-  DEMO_ORIGINAL: 'sequence',
+  DEMO_ORIGINAL: 'demo-original',
   CLAXON: 'horn',
+};
+const DIRECTION_PULSE = {
+  frames: [
+    { transform: 'none' },
+    { transform: 'translate(var(--press-x, 0px), var(--press-y, 0px)) scale(1.12)', offset: .28 },
+    { transform: 'none' },
+  ],
+  duration: 180,
+};
+const AUXILIARY_PULSES = {
+  LUCES: {
+    frames: [
+      { filter: 'none' },
+      { filter: 'brightness(1.75) drop-shadow(0 0 5px #ff8e97)', offset: .22 },
+      { filter: 'none' },
+    ],
+    duration: 300,
+  },
+  VELOCIDAD: {
+    frames: [{ transform: 'none' }, { transform: 'rotate(20deg)', offset: .34 }, { transform: 'none' }],
+    duration: 240,
+  },
+  DEMO_ORIGINAL: {
+    frames: [{ transform: 'none' }, { transform: 'scale(1.16)', offset: .32 }, { transform: 'none' }],
+    duration: 200,
+  },
+  CLAXON: {
+    frames: [
+      { transform: 'none' }, { transform: 'rotate(-9deg)', offset: .2 },
+      { transform: 'rotate(7deg)', offset: .44 }, { transform: 'rotate(-4deg)', offset: .68 },
+      { transform: 'none' },
+    ],
+    duration: 230,
+  },
 };
 const PHASE_LABELS = {
   queued: 'Solicitud en espera.',
@@ -47,6 +81,7 @@ export class DashboardView {
   #demoCatalog = null;
   #steps = null;
   #demoNotice = null;
+  #pressAnimations = new WeakMap();
 
   constructor(document) {
     this.#document = document;
@@ -79,14 +114,10 @@ export class DashboardView {
   }
 
   setNotice(message, bad = false) {
-    const text = formatCommandReferences(message);
-    for (const id of ['notice', 'notice-detail']) {
-      const notice = this.element(id);
-      notice.dataset.tone = bad ? 'bad' : 'idle';
-      notice.hidden = !message;
-      setText(notice, text);
-    }
-    this.#updateActivityAttention();
+    const notice = this.element('notice');
+    notice.dataset.tone = bad ? 'bad' : 'idle';
+    notice.hidden = !message;
+    setText(notice, formatCommandReferences(message));
   }
 
   setCatalog(catalog, request) {
@@ -118,23 +149,33 @@ export class DashboardView {
     button.dataset.command = key;
     button.setAttribute('aria-label', label);
     button.title = label;
+    let graphic;
     if (icon) {
-      const svg = this.#document.createElementNS(SVG, 'svg');
-      svg.setAttribute('class', 'icon');
-      svg.setAttribute('aria-hidden', 'true');
+      graphic = this.#document.createElementNS(SVG, 'svg');
+      graphic.setAttribute('class', 'icon');
+      graphic.setAttribute('aria-hidden', 'true');
       const use = this.#document.createElementNS(SVG, 'use');
       use.setAttribute('href', `./assets/icons.svg#${icon}`);
-      svg.append(use);
-      button.append(svg);
+      graphic.append(use);
+      button.append(graphic);
     }
     const caption = this.#document.createElement('span');
     caption.className = 'command-label';
     caption.textContent = label;
     button.append(caption);
     button.addEventListener('click', () => {
-      if (!button.disabled) request(key);
+      if (!button.disabled && request(key) && graphic) this.#pulseCommand(key, graphic);
     });
     return button;
+  }
+
+  #pulseCommand(key, graphic) {
+    const pulse = Object.hasOwn(DIRECTIONS, key) ? DIRECTION_PULSE : AUXILIARY_PULSES[key];
+    if (!pulse || !graphic.animate) return;
+    this.#pressAnimations.get(graphic)?.cancel();
+    if (this.#document.defaultView.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const { frames, duration } = pulse;
+    this.#pressAnimations.set(graphic, graphic.animate(frames, { duration, easing: 'ease-out' }));
   }
 
   setControl({ armed, canCommand, canStop, canClose, busy, catalogReady, catalogStatus }) {
@@ -166,31 +207,22 @@ export class DashboardView {
   setCommand(state) {
     if (!state) return;
     const { command, phase, message, correlation, ambiguous } = state;
-    this.element('activity-pane').dataset.commandPhase = phase;
-    this.#updateActivityAttention();
+    this.element('control-receipt').dataset.commandPhase = phase;
     const commandLabel = `${formatCommandName(command.name)} · ID ${command.id}`;
     this.#text('last-command', commandLabel);
-    this.#text('control-receipt-command', commandLabel);
-    const status = formatCommandReferences([PHASE_LABELS[phase], message].filter(Boolean).join(' '));
+    const status = formatCommandReferences(phase === 'error' && message
+      ? message : [PHASE_LABELS[phase], message].filter(Boolean).join(' '));
     this.#text('command-state', status);
-    this.#text('control-receipt-status', status);
-    this.#text('command-alert', phase === 'error' ? status : '');
     this.element('event-correlation').hidden = phase !== 'accepted';
     this.#text('event-correlation', ambiguous
-      ? 'Se observaron varias coincidencias WSS. La relación con la solicitud es indeterminada.'
+      ? 'Varias coincidencias WSS. La relación es indeterminada.'
       : correlation
-        ? 'Evento WSS compatible con la respuesta HTTP por comando y marca de tiempo. La coincidencia es orientativa.'
-        : 'Sin evento WSS compatible observado para esta solicitud.');
-  }
-
-  #updateActivityAttention() {
-    const notice = this.element('notice');
-    const noticeError = !notice.hidden && notice.dataset.tone === 'bad';
-    const commandError = this.element('activity-pane').dataset.commandPhase === 'error';
-    this.element('activity-toggle').toggleAttribute('data-attention', noticeError || commandError);
+        ? 'WSS compatible (orientativo).'
+        : 'Sin WSS compatible.');
   }
 
   setEvent(event) {
+    this.element('receipt-wss').hidden = event.tipo_evento === 'estado_actual';
     const label = EVENT_LABELS[event.tipo_evento];
     const demo = event.id_demo ? formatCommandReferences(event.nombre_demo || `DEMO ${event.id_demo}`) : null;
     this.#text('last-event', demo ? `${label} · ${demo}` : label);
