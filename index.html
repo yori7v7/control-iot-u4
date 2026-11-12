@@ -87,7 +87,10 @@
       <section class="drive-panel" aria-labelledby="drive-title">
         <div class="panel-heading">
           <h2 id="drive-title" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual</h2>
-          <span class="mode-label" id="control-mode" role="status" data-catalog-status>Esperando catálogo</span>
+          <button class="mode-label" id="open-public-control" type="button" popovertarget="public-control" aria-label="Turnos de control · Esperando catálogo" title="Turnos de control" data-catalog-status disabled>
+            <span id="control-mode">Esperando catálogo</span>
+          </button>
+          <span class="visually-hidden" id="control-mode-announcement" role="status">Esperando catálogo</span>
         </div>
         <div class="drive-body">
           <div class="joystick-stage">
@@ -182,6 +185,9 @@
           <p class="monitor-message" id="monitor-realtime" role="status">Esperando WSS</p>
           <p class="monitor-limit">Ejecución física sin verificar.</p>
           <p class="monitor-message" id="monitor-event" aria-live="polite">Sin eventos recibidos.</p>
+          <div class="monitor-demo-status" role="status" aria-atomic="true">
+            <p class="monitor-message monitor-demo" id="monitor-demo" hidden></p>
+          </div>
         </div>
       </div>
 
@@ -225,6 +231,41 @@
       <button class="btn btn-quiet" id="views-vehicle-detail" type="button" aria-controls="vehicle-detail">Información del vehículo</button>
     </div>
   </nav>
+
+  <section class="inspector public-control" id="public-control" popover aria-labelledby="public-control-title">
+    <div class="panel-heading">
+      <h2 id="public-control-title">Turnos de control</h2>
+      <button class="btn btn-quiet icon-button" type="button" popovertarget="public-control" popovertargetaction="hide" aria-label="Cerrar turnos de control">
+        <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#close"/></svg>
+      </button>
+    </div>
+    <div class="inspector-body">
+      <div class="public-control-heading">
+        <p id="public-control-role">Observador</p>
+        <p class="muted" id="public-control-simulation" hidden>Simulación local</p>
+      </div>
+      <p class="muted" id="public-control-status" role="status">Consultando disponibilidad…</p>
+      <p class="public-control-time" id="public-window-time" hidden>Ventana restante <span id="public-window-countdown"></span></p>
+      <p class="public-control-time" id="public-turn-time" hidden>Turno restante <span id="public-turn-countdown"></span></p>
+      <p id="public-control-message" role="status" hidden></p>
+      <div class="public-control-actions" id="public-guest-actions" hidden>
+        <button class="btn btn-primary-panel" id="public-take" type="button" disabled>Tomar control</button>
+        <button class="btn btn-outline-panel" id="public-release" type="button" hidden disabled>Ceder control</button>
+      </div>
+      <div class="public-control-admin" id="public-admin-actions" hidden>
+        <div class="form-check" id="public-supervision-field" hidden>
+          <input class="form-check-input" id="public-supervision" type="checkbox" disabled>
+          <label class="form-check-label" for="public-supervision">Confirmo que supervisaré la demostración simulada de 20 minutos.</label>
+        </div>
+        <div class="public-control-actions">
+          <button class="btn btn-primary-panel" id="public-open-window" type="button" disabled>Activar demostración</button>
+          <button class="btn btn-outline-panel" id="public-close-window" type="button" hidden disabled>Desactivar demostración</button>
+          <button class="btn btn-outline-panel" id="public-revoke" type="button" disabled>Revocar turno</button>
+        </div>
+      </div>
+      <a id="public-exit-simulation" href="./" hidden>Salir de simulación</a>
+    </div>
+  </section>
 
   <section class="inspector" id="demo-detail" popover aria-labelledby="demo-detail-title">
     <div class="panel-heading">
@@ -277,12 +318,12 @@
       </div>
       <div class="session-body panel-body">
         <p class="notice warning-notice" id="session-risk">Una solicitud puede activar físicamente el vehículo si el microcontrolador está conectado. Para las pruebas de la práctica debe permanecer desconectado.</p>
-        <p class="muted">La clave administrativa en el navegador permite controlar este vehículo. Su uso se limita a una sesión personal de prueba y carece de las garantías de una autenticación multiusuario.</p>
+        <p class="muted" id="session-key-help">La clave administrativa en el navegador permite controlar este vehículo. Su uso se limita a una sesión personal de prueba y carece de las garantías de una autenticación multiusuario.</p>
         <label class="form-label" for="api-key">Clave API</label>
         <input class="form-control" id="api-key" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="512" autofocus>
         <div class="form-check mt-3">
           <input class="form-check-input" id="risk-ack" type="checkbox" required>
-          <label class="form-check-label" for="risk-ack">Entiendo que los comandos pueden activar el vehículo.</label>
+          <label class="form-check-label" id="risk-ack-label" for="risk-ack">Entiendo que los comandos pueden activar el vehículo.</label>
         </div>
         <p id="session-error" class="session-error" role="alert" hidden></p>
         <button class="btn btn-outline-panel mt-3" id="clear-session" type="button" hidden>Cerrar sesión de control</button>

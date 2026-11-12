@@ -1,6 +1,8 @@
 import { CONFIG } from '../config.js';
 
-const DEMO_TERMINAL_EVENTS = new Set(['demo_fin', 'demo_cancelada', 'demo_error']);
+const DEMO_TERMINAL_PHASES = Object.freeze({
+  demo_fin: 'finished', demo_cancelada: 'cancelled', demo_error: 'error',
+});
 
 function resource(read) {
   return { read, value: undefined, status: 'idle', dirty: false, request: null };
@@ -16,6 +18,8 @@ export class MonitoringController {
   #connected = false;
   #event = null;
   #preview = null;
+  #demo = null;
+  #demoLifecycleTime = null;
 
   constructor({ readState, readHistory, onChange, vehicleId = CONFIG.vehicleId, reconcileDelayMs = 150 }) {
     this.#resources = { persisted: resource(readState), history: resource(readHistory) };
@@ -31,6 +35,7 @@ export class MonitoringController {
       history: { status: history.status, value: history.value },
       event: this.#event,
       preview: this.#preview,
+      demo: this.#demo,
       connected: this.#connected,
     };
   }
@@ -65,28 +70,56 @@ export class MonitoringController {
   setConnected(connected) {
     if (this.#connected === connected) return;
     this.#connected = connected;
-    if (!this.#active) return;
-    if (connected) {
+    if (!connected) this.#demoLifecycleTime = null;
+    const lostDemo = !connected && ['running', 'observed'].includes(this.#demo?.phase);
+    if (lostDemo) this.#demo = { ...this.#demo, phase: 'unknown' };
+    if (connected && this.#active) {
       this.#abortReads();
       this.#invalidate('persisted', 'history');
     }
-    this.#publish();
+    if (this.#active || lostDemo) this.#publish();
   }
 
   handleEvent(event) {
     // The shared WebSocketClient validates payloads and deduplicates event IDs before delivery.
-    if (!this.#active || event?.id_vehiculo !== this.#vehicleId) return;
+    if (event?.id_vehiculo !== this.#vehicleId) return;
     const type = event.tipo_evento;
-    if (type === 'estado_actual' || type === 'movimiento' || type === 'demo_movimiento') {
+    const demoChanged = this.#connected && this.#trackDemo(event);
+    if (this.#active && (type === 'estado_actual' || type === 'movimiento' || type === 'demo_movimiento')) {
       this.#event = event;
       this.#preview = event;
       if (type === 'movimiento') this.#invalidate('persisted', 'history');
       else this.#invalidate('persisted');
       this.#publish();
-    } else if (DEMO_TERMINAL_EVENTS.has(type)) {
-      this.#invalidate('persisted');
-      this.#publish();
+    } else {
+      const terminal = this.#active && Object.hasOwn(DEMO_TERMINAL_PHASES, type);
+      if (terminal) this.#invalidate('persisted');
+      if (terminal || demoChanged) this.#publish();
     }
+  }
+
+  #trackDemo(event) {
+    const { tipo_evento: type, id_demo: id } = event;
+    const current = this.#demo?.id === id ? this.#demo : null;
+    if (type === 'demo_movimiento') {
+      const phase = current?.phase === 'running' ? 'running' : 'observed';
+      if (current?.phase === phase && event.orden <= current.step?.orden) return false;
+      this.#demo = { id, phase, step: event };
+      return true;
+    }
+
+    const phase = type === 'demo_inicio' ? 'running'
+      : Object.hasOwn(DEMO_TERMINAL_PHASES, type) ? DEMO_TERMINAL_PHASES[type] : null;
+    if (phase === null) return false;
+    // Only lifecycle events use the backend clock. Step timestamps come from RDS.
+    const time = Date.parse(event.timestamp);
+    if (Number.isFinite(time)) {
+      if (this.#demoLifecycleTime !== null && time < this.#demoLifecycleTime) return false;
+      this.#demoLifecycleTime = time;
+    }
+    const hasCurrentStep = ['running', 'observed'].includes(current?.phase);
+    this.#demo = { id, phase, step: phase !== 'running' && hasCurrentStep ? current.step : null };
+    return true;
   }
 
   #invalidate(...keys) {

@@ -35,6 +35,8 @@ La ruta base abre **Control**. Usa los enlaces de la cabecera o el botón **Vist
 
 Al finalizar normalmente o tras aceptar por HTTP un DETENER posterior a la cancelación, el panel conserva el resultado visible unos cuatro segundos. Luego vuelve a «Sin DEMO en ejecución», mantiene la selección y guarda la evidencia disponible en **Último resultado**. Si DETENER falla o agota el plazo, permanece el aviso.
 
+**Turnos de control** muestra la disponibilidad para invitados. El contrato de la etapa 5.2 admite turnos simulados exclusivamente en loopback. El CONTROL autenticado sigue disponible con el backend en modo público deshabilitado. [Integración y prueba local](assets/docs/control-publico.md#integración-de-la-etapa-53)
+
 ### Monitoreo
 
 La vista abre sin clave. Al entrar consulta `GET /vehiculos/1/estado` y `GET /vehiculos/1/historial`. El estado puede ser `null`. El historial puede estar vacío y muestra hasta diez filas persistidas en el orden del servidor. Las fechas sin zona conservan la hora reportada y las filas mantienen su origen y el identificador de historial exacto.
@@ -42,6 +44,8 @@ La vista abre sin clave. Al entrar consulta `GET /vehiculos/1/estado` y `GET /ve
 Los eventos de `WSS /ws/vehiculos/1` actualizan el reporte observado y solicitan una reconciliación. Un movimiento individual activa la lectura de estado e historial. Un paso de DEMO actualiza el estado y queda fuera de la tabla. La reconexión y **Actualizar monitoreo** recargan ambos recursos. Las lecturas se agrupan ante ráfagas, se descartan resultados obsoletos y la última tabla válida sigue visible durante fallos transitorios. El historial se actualiza por eventos y por demanda.
 
 La tarjeta distingue el evento recibido del estado confirmado por REST. El estado persistido, WSS y `conectado` describen evidencia del backend y carecen de acuse físico del actuador. En simulación, MONITOREO indica que el historial real está disponible en el modo conectado.
+
+El indicador **DEMO programada** usa el WSS compartido al cambiar de vista. Un paso aislado acredita el movimiento observado. Tras perder WSS, una ejecución previa queda sin confirmar hasta que llegue evidencia nueva.
 
 ## Premium Dashboard 2.0
 

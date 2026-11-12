@@ -8,11 +8,13 @@ const MONITOR = `${APP}#monitoreo`;
 const VEHICLE = `/vehiculos/${CONFIG.vehicleId}`;
 const STATE = `${VEHICLE}/estado`;
 const HISTORY = `${VEHICLE}/historial`;
+const PUBLIC_STATUS = `/publico${VEHICLE}/control`;
 const WHEN = '2026-11-11T18:01:47';
 const FORWARD = 'Avanzar a la derecha';
 const REVERSE = 'Retroceder a la izquierda';
 const monitor = '#monitor-view';
 const command = '#monitor-command';
+const demoIndicator = '#monitor-demo';
 const rows = '#monitor-history-body tr';
 const pager = '#monitor-history-pagination';
 const previousPage = '#monitor-history-prev';
@@ -69,6 +71,17 @@ function historyWindow() {
     640 - index, name, code, index >= 9 ? null : `2026-11-11T18:01:${47 - index}`,
     index === 1 ? 'MANUAL' : 'API',
   ));
+}
+
+function demoLifecycle(tipo_evento, timestamp = `${WHEN}Z`) {
+  return { tipo_evento, id_demo: 21, nombre_demo: 'Ruta de prueba', timestamp, mensaje: null };
+}
+
+function demoMovement() {
+  return {
+    ...demoLifecycle('demo_movimiento', WHEN), id_demo_movimiento: 3, id_comando: 5,
+    comando: 'RETROCEDER_IZQUIERDA', codigo: 6, conectado: true, orden: 1, duracion_ms: 500, pausa_ms: 150,
+  };
 }
 
 async function intercept(page, baseURL, { state = savedState(), history = [] } = {}) {
@@ -141,6 +154,10 @@ async function intercept(page, baseURL, { state = savedState(), history = [] } =
     if (path === VEHICLE) return json(vehicle);
     if (path === `${VEHICLE}/comandos`) return json(catalog);
     if (path === `${VEHICLE}/demos`) return json([]);
+    if (path === PUBLIC_STATUS) return json({
+      id_vehiculo: CONFIG.vehicleId, habilitado: false, estado: 'cerrado',
+      vence_ventana_en: null, hora_servidor: new Date().toISOString(), revision: 0, simulado: false,
+    });
     if (path === STATE) return fixtures.respondState ? fixtures.respondState(json) : json(fixtures.state);
     if (path === HISTORY) return fixtures.respondHistory ? fixtures.respondHistory(json) : json(fixtures.history);
     fixtures.unexpected.push(`GET ${path}`);
@@ -320,18 +337,50 @@ test('un paso de DEMO actualiza el estado sin añadir ni releer filas individual
   const previousState = fixtures.reads(STATE);
   const previousHistory = fixtures.reads(HISTORY);
   fixtures.state = savedState('RETROCEDER_IZQUIERDA', 6, 5);
-  fixtures.publish({
-    tipo_evento: 'demo_movimiento', id_demo: 21, nombre_demo: 'Ruta de prueba', id_demo_movimiento: 3,
-    id_comando: 5, comando: 'RETROCEDER_IZQUIERDA', codigo: 6, timestamp: WHEN, conectado: true,
-    orden: 1, duracion_ms: 500, pausa_ms: 150,
-  });
+  fixtures.publish(demoMovement());
   await expect(page.locator(command)).toHaveText(REVERSE);
   await expect(page.locator('#monitor-event')).toContainText(/demostración|demo/i);
+  await expect(page.locator(demoIndicator)).toHaveText(`DEMO programada · Paso observado · ${REVERSE}`);
   await page.clock.runFor(800);
   await expect.poll(() => fixtures.reads(STATE)).toBeGreaterThan(previousState);
   expect(fixtures.reads(HISTORY)).toBe(previousHistory);
   await expect(page.locator(rows)).toHaveCount(1);
   await expect(page.locator(rows).first()).toContainText(FORWARD);
+  assertIsolated(fixtures);
+});
+
+test('muestra el inicio, paso y desenlaces de DEMO programada al alternar las vistas y se reinicia al recargar', async ({ page, baseURL }) => {
+  const fixtures = await intercept(page, baseURL, { history: [historyEntry(640, 'DEMO_ORIGINAL', 64)] });
+  await page.goto(APP);
+  await expect(page.locator('#ws-indicator')).toHaveAttribute('data-tone', 'good');
+  fixtures.publish({
+    tipo_evento: 'movimiento', id_comando: 10, comando: 'DEMO_ORIGINAL', codigo: 64,
+    timestamp: WHEN, conectado: true, origen: 'API',
+  });
+  await navigate(page, 'Monitoreo');
+  const indicator = page.locator(demoIndicator);
+  await expect(indicator).toBeHidden();
+  await navigate(page, 'Control');
+  fixtures.publish(demoLifecycle('demo_inicio'));
+  await navigate(page, 'Monitoreo');
+  await expect(indicator).toHaveText('DEMO programada · En ejecución');
+  fixtures.publish(demoMovement());
+  await expect(indicator).toHaveText(`DEMO programada · En ejecución · ${REVERSE}`);
+  await navigate(page, 'Control');
+  fixtures.publish(demoLifecycle('demo_fin', '2026-11-11T18:01:48Z'));
+  await navigate(page, 'Monitoreo');
+  await expect(indicator).toHaveText(`DEMO programada · Finalización observada · ${REVERSE}`);
+  fixtures.publish(demoLifecycle('demo_cancelada', '2026-11-11T18:01:49Z'));
+  await expect(indicator).toContainText('Cancelación observada');
+  fixtures.publish(demoLifecycle('demo_error', '2026-11-11T18:01:50Z'));
+  await expect(indicator).toContainText('Error observado');
+  await expect(page.locator(rows)).toHaveCount(1);
+  await expect(page.locator(rows).first()).toContainText('Demostración original');
+  expect(fixtures.sockets).toHaveLength(1);
+
+  await page.reload();
+  await expect(page.locator('#ws-indicator')).toHaveAttribute('data-tone', 'good');
+  await expect(indicator).toBeHidden();
   assertIsolated(fixtures);
 });
 
@@ -345,16 +394,20 @@ test('relee estado e historial al reconectar WSS y conserva la tabla durante el 
   await expect(page.locator('#monitor-history-status')).toHaveText('1 movimiento registrado');
   await page.clock.runFor(800);
   const previous = { state: fixtures.reads(STATE), history: fixtures.reads(HISTORY) };
+  fixtures.publish(demoLifecycle('demo_inicio'));
+  await expect(page.locator(demoIndicator)).toContainText('En ejecución');
   fixtures.state = savedState('DETENER', 0, 1);
   fixtures.history = [historyEntry(641, 'DETENER', 0), ...fixtures.history];
   fixtures.sockets[0].close({ code: 1011, reason: 'corte de prueba' });
   await expect(page.locator('#ws-indicator')).toHaveAttribute('data-tone', /bad|wait/);
   await expect(page.locator('#monitor-realtime')).toContainText(/esperando|reconectando/i);
+  await expect(page.locator(demoIndicator)).toHaveText('DEMO programada · Estado sin confirmar');
   await expect(page.locator(rows)).toHaveCount(1);
   await page.clock.runFor(2800);
   await expect.poll(() => fixtures.sockets.length).toBe(2);
   await expect(page.locator('#ws-indicator')).toHaveAttribute('data-tone', 'good');
   await expect(page.locator('#monitor-realtime')).toContainText('en vivo');
+  await expect(page.locator(demoIndicator)).toHaveText('DEMO programada · Estado sin confirmar');
   await expect(page.locator(command)).toHaveText('Detener');
   await expect(page.locator(rows)).toHaveCount(2);
   await expect(page.locator(rows).first()).toContainText('Detener');
@@ -436,6 +489,7 @@ test('conserva Detener en MONITOREO hasta confirmar la parada de una DEMO cancel
 
   await navigate(page, 'Monitoreo');
   await expect(page.locator(monitor)).toBeVisible();
+  await expect(page.locator(demoIndicator)).toContainText('Cancelación observada');
   await expect(stop).toBeVisible();
   await expect(stop).toBeEnabled();
   await stop.click();
@@ -470,6 +524,11 @@ for (const { group, mobile, sizes } of viewports) {
         await expect(page.getByRole('table')).toBeVisible();
         await expect(page.getByRole('columnheader').first()).toBeVisible();
         await expect(page.locator(rows).first()).toHaveAttribute('data-history-id', '640');
+        await expect(page.locator('#ws-indicator')).toHaveAttribute('data-tone', 'good');
+        fixtures.publish(demoLifecycle('demo_inicio'));
+        fixtures.publish(demoMovement());
+        await expect(page.locator(demoIndicator)).toHaveText(`DEMO programada · En ejecución · ${REVERSE}`);
+        await expect(page.locator(demoIndicator)).toBeInViewport({ ratio: 1 });
         await expectMonitoringToFit(page);
         if (width === 1920) {
           await expect(page.locator(rows)).toHaveCount(10);
@@ -595,6 +654,8 @@ test('permite leer y paginar con desplazamiento de página cuando el alto es ext
   await page.goto(MONITOR);
   const first = page.locator(rows).first();
   await expect(first).toHaveAttribute('data-history-id', '640');
+  await expect(page.locator('#ws-indicator')).toHaveAttribute('data-tone', 'good');
+  await expect(page.locator('#monitor-history-status')).toHaveText('10 movimientos registrados');
   expect(await page.evaluate(() => {
     const root = document.documentElement;
     const table = document.querySelector('#monitor-history-table');
