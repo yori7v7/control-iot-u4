@@ -781,6 +781,10 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
    esconder la confirmación de la orden ni bajar los botones de 44px. */
 @media (orientation: portrait) and (max-width: 21rem) and (max-height: 36rem) {
   :root { --dial: 126px; }
+  .topbar-inner { min-height: 2.875rem; padding-block: 1px; }
+  .drive-panel, .demo-panel { padding-block: 1px; }
+  .deck-notice { font-size: .68rem; line-height: 1.16; }
+  .control-receipt { padding-block: 1px; font-size: .68rem; line-height: 1.16; }
 }
 
 @media (orientation: landscape) and (max-height: 32rem) {
