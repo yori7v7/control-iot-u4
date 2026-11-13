@@ -56,8 +56,12 @@ export class AdminApprovalClient {
       credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
       redirect: 'error', signal: requestSignal,
     });
+    // Si un fetch de pruebas o un intermediario tarda en entregar el cuerpo,
+    // una respuesta obsoleta nunca debe considerarse éxito tras cancelación.
+    requestSignal.throwIfAborted();
     if (!response.ok) throw new Error(`Autorización administrativa HTTP ${response.status}`);
     const parsed = await response.json();
+    requestSignal.throwIfAborted();
     if (!parsed || parsed.control_fisico !== false || parsed.simulado !== true) {
       throw new TypeError('Respuesta del backend no verificable.');
     }
