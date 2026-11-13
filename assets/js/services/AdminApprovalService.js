@@ -28,24 +28,33 @@ function verifiedList(data) {
 export class AdminApprovalClient {
   #base;
   #fetch;
+  #timeoutMs;
 
-  constructor({ apiUrl, vehicleId, fetchImpl = globalThis.fetch.bind(globalThis) } = {}) {
+  constructor({ apiUrl, vehicleId, fetchImpl = globalThis.fetch.bind(globalThis), timeoutMs = 5000 } = {}) {
     const url = new URL(apiUrl);
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
         url.pathname !== '/' || !Number.isSafeInteger(vehicleId) || vehicleId <= 0 ||
-        typeof fetchImpl !== 'function') throw new TypeError('Origen de autorización inválido.');
+        typeof fetchImpl !== 'function' || !Number.isSafeInteger(timeoutMs) ||
+        timeoutMs < 10 || timeoutMs > 60000) throw new TypeError('Origen de autorización inválido.');
     this.#base = `${url.origin}/admin/vehiculos/${vehicleId}/control-publico/solicitudes`;
     this.#fetch = fetchImpl;
+    this.#timeoutMs = timeoutMs;
   }
 
   async #call(path, key, { method = 'GET', data, signal } = {}) {
     if (typeof key !== 'string' || !key.trim() || /[\r\n]/.test(key)) throw new TypeError('Credencial inválida.');
     const headers = { Accept: 'application/json', 'X-API-Key': key };
     if (data !== undefined) headers['Content-Type'] = 'application/json';
+    // Nunca reemplazar el deadline por la señal de sesión: hacen falta AMBOS.
+    // Si el administrador cierra el panel se cancela inmediatamente; si la red
+    // deja de responder, expira aunque la pestaña continúe abierta.
+    const deadline = AbortSignal.timeout(this.#timeoutMs);
+    const requestSignal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+    requestSignal.throwIfAborted();
     const response = await this.#fetch(this.#base + path, {
       method, headers, body: data === undefined ? undefined : JSON.stringify(data),
       credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer',
-      redirect: 'error', signal: signal ?? AbortSignal.timeout(5000),
+      redirect: 'error', signal: requestSignal,
     });
     if (!response.ok) throw new Error(`Autorización administrativa HTTP ${response.status}`);
     const parsed = await response.json();
