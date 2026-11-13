@@ -64,7 +64,9 @@ jobs:
           echo "KU_SERVER_CRT=$RUNNER_TEMP/ku/server.crt" >> "$GITHUB_ENV"
           echo "KU_SERVER_KEY=$RUNNER_TEMP/ku/server.key" >> "$GITHUB_ENV"
           echo "NODE_EXTRA_CA_CERTS=$RUNNER_TEMP/ku/root.crt" >> "$GITHUB_ENV"
-          echo "KU_ADMIN_TEST_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          test_key="$(openssl rand -hex 32)"
+          echo "::add-mask::$test_key"
+          echo "KU_ADMIN_TEST_KEY=$test_key" >> "$GITHUB_ENV"
           echo "KU_CI_LAB=isolated-loopback-only" >> "$GITHUB_ENV"
           echo "APP_ENV=development" >> "$GITHUB_ENV"
           openssl req -x509 -newkey rsa:2048 -nodes \
@@ -100,7 +102,7 @@ jobs:
           set -euo pipefail
           (
             cd backend-ku
-            python scripts/servidor_55ku_https_ci.py > "$KU_TEST_DIR/backend.log" 2>&1 &
+            python -m scripts.servidor_55ku_https_ci > "$KU_TEST_DIR/backend.log" 2>&1 &
             echo $! > "$KU_TEST_DIR/server.pid"
           )
           ready=0
