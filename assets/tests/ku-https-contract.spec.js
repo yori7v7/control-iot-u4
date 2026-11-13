@@ -8,8 +8,6 @@
  *
  * Ejecutar SOLO bajo workflow experimental-frontend-ku.yml.
  */
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 const PAGES = 'https://yori7v7.github.io';
@@ -18,11 +16,6 @@ const ROOT = '/publico/vehiculos/1/solicitudes';
 const ADMIN = '/admin/vehiculos/1/control-publico/solicitudes';
 const MODULE = '/control-iot-u4/assets/js/services/GuestAdmissionService.js';
 const ADMIN_KEY = process.env.KU_ADMIN_TEST_KEY || '';
-const HTML = `<!doctype html><html lang="es"><head><meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; connect-src https://ks.localhost:9443; base-uri 'none'; form-action 'none'">
-<title>5.5 K-U integración HTTPS CI</title></head><body><main id="laboratorio">K-U HTTPS solo virtual</main></body></html>`;
-const JS_MODULE = readFileSync(resolve('assets/js/services/GuestAdmissionService.js'), 'utf8');
-
 test.use({
   ignoreHTTPSErrors: false,
   launchOptions: { args: ['--no-proxy-server'] },
@@ -34,6 +27,12 @@ async function isolatedPage(context, pageOrigin = PAGES) {
   const page = await context.newPage();
   const requests = [];
   const failures = [];
+  page.on('request', request => {
+    const u = new URL(request.url());
+    if (u.origin === API) {
+      requests.push({ method: request.method(), path: u.pathname });
+    }
+  });
   page.on('requestfailed', request => {
     const u = new URL(request.url());
     if (u.origin === API) {
@@ -49,27 +48,11 @@ async function isolatedPage(context, pageOrigin = PAGES) {
       }
     }
   });
-  await page.route('**/*', route => {
-    const req = route.request();
-    const url = new URL(req.url());
-    if (url.origin === pageOrigin && url.pathname === '/control-iot-u4/') {
-      return route.fulfill({
-        status: 200, contentType: 'text/html; charset=utf-8', body: HTML,
-      });
-    }
-    if (url.origin === pageOrigin && url.pathname === MODULE) {
-      return route.fulfill({
-        status: 200, contentType: 'application/javascript; charset=utf-8',
-        body: JS_MODULE,
-      });
-    }
-    if (url.origin === API) {
-      requests.push({ method: req.method(), path: url.pathname });
-      return route.continue(); // Petición REAL por TLS. No mock.
-    }
-    return route.abort('blockedbyclient'); // Prohibido consultar GitHub/AWS.
-  });
-  await page.goto(pageOrigin + '/control-iot-u4/');
+  // La página Y el módulo JS se obtienen ahora por HTTPS real desde 127.0.0.1
+  // con DNS fijado SOLO en GitHub Actions y certificado CA efímera confiable.
+  // Nada se intercepta ni simula: HTTPS + CORS reales.
+  const response = await page.goto(pageOrigin + '/control-iot-u4/');
+  expect(response?.status()).toBe(200);
   return { page, requests, failures };
 }
 
