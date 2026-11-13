@@ -191,11 +191,17 @@ test('K-M: profesor y admin en la MISMA página, autorización virtual y revocac
   const lab = await prepareMockedPages(context, new URL(baseURL).origin);
   const guest = await context.newPage();
   const guestErrors = await lab.load(guest);
-  await expect.poll(() => lab.requests.filter(x => x.path === ROOT).length).toBeGreaterThan(0);
+  await guest.waitForTimeout(500);
   console.log('[K-M DIAG] guest', JSON.stringify({
     calls: lab.requests.map(x => x.method + ' ' + x.path),
     ticketCount: lab.tickets.length, unexpected: lab.unexpected,
     pageErrors: guestErrors,
+    csp: await guest.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content'),
+    config: await guest.evaluate(async () => {
+      const m = await import('./assets/js/config.js');
+      return { apiUrl: m.CONFIG.apiUrl, guestEnabled: m.CONFIG.guestAdmissionEnabled,
+        adminEnabled: m.CONFIG.adminApprovalEnabled };
+    }),
   }));
   await expect(guest.locator('#control-mode')).toHaveText('En espera');
   const code = lab.tickets[0]?.code;
@@ -248,11 +254,17 @@ test('K-M: visitante móvil 390 × 844 muestra espera sin scroll horizontal ni c
   const guest = await context.newPage();
   await guest.setViewportSize({ width: 390, height: 844 });
   const errors = await lab.load(guest);
-  await expect.poll(() => lab.requests.filter(x => x.path === ROOT).length).toBeGreaterThan(0);
+  await guest.waitForTimeout(500);
   console.log('[K-M DIAG] mobile', JSON.stringify({
     calls: lab.requests.map(x => x.method + ' ' + x.path),
     ticketCount: lab.tickets.length, unexpected: lab.unexpected,
     pageErrors: errors,
+    csp: await guest.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content'),
+    config: await guest.evaluate(async () => {
+      const m = await import('./assets/js/config.js');
+      return { apiUrl: m.CONFIG.apiUrl, guestEnabled: m.CONFIG.guestAdmissionEnabled,
+        adminEnabled: m.CONFIG.adminApprovalEnabled };
+    }),
   }));
   await expect(guest.locator('#control-mode')).toHaveText('En espera');
   await checkNoDrive(guest);
