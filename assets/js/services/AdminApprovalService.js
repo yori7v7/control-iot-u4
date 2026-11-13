@@ -76,6 +76,7 @@ export class AdminApprovalClient {
 export class AdminApprovalService {
   #client; #onChange; #clock; #setInterval; #clearInterval;
   #key = ''; #generation = 0; #timer = null; #beatTimer = null; #abort = null;
+  #suspended = false;
   #busy = false; #reading = false; #beating = false; #supervising = false;
   #lastBeat = 0; #phase = 'inactive'; #message = ''; #pending = []; #active = false;
 
@@ -88,7 +89,8 @@ export class AdminApprovalService {
   }
 
   get state() {
-    const fresh = this.#supervising && this.#lastBeat > 0 && this.#clock() - this.#lastBeat < 15000;
+    const age = this.#clock() - this.#lastBeat;
+    const fresh = !this.#suspended && this.#supervising && this.#lastBeat > 0 && age >= 0 && age < 15000;
     return Object.freeze({
       phase: this.#phase, message: this.#message, pending: Object.freeze([...this.#pending]),
       active: this.#active, supervising: fresh, busy: this.#busy,
@@ -108,14 +110,52 @@ export class AdminApprovalService {
   }
   stop() {
     this.#generation++; this.#abort?.abort(); this.#stopIntervals();
+    this.#suspended = false;
     this.#key = ''; this.#abort = null; this.#phase = 'inactive'; this.#message = '';
     this.#pending = []; this.#active = false; this.#supervising = false;
     this.#busy = this.#reading = this.#beating = false; this.#lastBeat = 0;
     this.#notify();
   }
+  /** K-N: suspender la UI de inmediato (pestaña oculta, offline).
+   * Revocación de red es best-effort; el servidor debe imponer TTL y STOP.
+   */
+  pause() {
+    if (!this.#key || this.#suspended) return Promise.resolve(false);
+    const needsRevoke = this.#active || this.#supervising || this.#busy;
+    const key = this.#key;
+    this.#suspended = true;
+    this.#generation++;
+    this.#abort?.abort();
+    this.#stopIntervals();
+    this.#pending = []; this.#active = false; this.#supervising = false;
+    this.#lastBeat = 0; this.#reading = false; this.#beating = false; this.#busy = false;
+    this.#phase = 'unavailable';
+    this.#message = 'Pestaña oculta o sin conexión. Supervisión suspendida; revocación sin confirmar.';
+    this.#notify();
+    if (!needsRevoke) return Promise.resolve(false);
+    return Promise.resolve()
+      .then(() => this.#client.revoke(key))
+      .then(row => row?.simulado === true && row?.control_fisico === false && row?.revocado === true)
+      .catch(() => false);
+  }
+
+  /** En primer plano se vuelve a consultar la cola; nunca reanuda el latido. */
+  resume() {
+    if (!this.#key || !this.#suspended) return;
+    this.#suspended = false;
+    this.#abort = new AbortController();
+    this.#phase = 'checking';
+    this.#message = 'Revalidando permisos. Inicia la supervisión manualmente.';
+    this.#reading = false;
+    this.#notify();
+    this.#timer = this.#setInterval(() => void this.refresh(), 2000);
+    void this.refresh();
+  }
+
   start(key) {
     if (typeof key !== 'string' || !key.trim() || /[\r\n]/.test(key)) return false;
     this.stop();
+    this.#suspended = false;
     this.#key = key; this.#abort = new AbortController(); this.#phase = 'checking';
     this.#notify();
     this.#timer = this.#setInterval(() => void this.refresh(), 2000);
@@ -124,15 +164,15 @@ export class AdminApprovalService {
   }
 
   async refresh() {
-    if (!this.#key || this.#reading || this.#busy) return;
+    if (!this.#key || this.#suspended || this.#reading || this.#busy) return;
     const generation = this.#generation; this.#reading = true;
     try {
       const snapshot = verifiedList(await this.#client.pending(this.#key, this.#abort.signal));
-      if (generation !== this.#generation) return;
+      if (this.#suspended || generation !== this.#generation) return;
       this.#pending = snapshot.pending; this.#active = snapshot.active;
       this.#phase = 'ready'; this.#message = '';
     } catch {
-      if (generation !== this.#generation) return;
+      if (this.#suspended || generation !== this.#generation) return;
       this.#phase = 'unavailable'; this.#message = 'No se pudo verificar la sesión administrativa.';
       this.#pending = []; this.#active = false; this.#supervising = false; this.#lastBeat = 0;
       if (this.#beatTimer !== null) this.#clearInterval(this.#beatTimer);
@@ -143,16 +183,16 @@ export class AdminApprovalService {
   }
 
   async #beat() {
-    if (!this.#key || this.#beating || this.#busy) return;
+    if (!this.#key || this.#suspended || this.#beating || this.#busy) return;
     const generation = this.#generation; this.#beating = true;
     try {
       const result = await this.#client.heartbeat(this.#key, this.#abort.signal);
-      if (generation !== this.#generation) return;
+      if (this.#suspended || generation !== this.#generation) return;
       if (result.supervision !== true || result.vigencia_s !== 15) throw new TypeError('Latido inválido.');
       this.#lastBeat = this.#clock(); this.#supervising = true;
       this.#message = '';
     } catch {
-      if (generation !== this.#generation) return;
+      if (this.#suspended || generation !== this.#generation) return;
       this.#supervising = false; this.#lastBeat = 0;
       this.#message = 'Supervisión no confirmada. No se pueden aprobar solicitudes.';
       if (this.#beatTimer !== null) this.#clearInterval(this.#beatTimer);
@@ -171,12 +211,12 @@ export class AdminApprovalService {
   }
 
   async #change(operation, successMessage, successFlag) {
-    if (!this.#key || this.#busy || this.#phase !== 'ready') return false;
+    if (!this.#key || this.#suspended || this.#busy || this.#phase !== 'ready') return false;
     const generation = this.#generation; this.#busy = true; this.#notify();
     let ok = false;
     try {
       const result = await operation(this.#key, this.#abort.signal);
-      if (generation !== this.#generation) return false;
+      if (this.#suspended || generation !== this.#generation) return false;
       if (result.control_fisico !== false || result.simulado !== true || result[successFlag] !== true) throw new TypeError();
       this.#message = successMessage; ok = true;
     } catch {
@@ -203,7 +243,7 @@ export class AdminApprovalService {
       'Solicitud aprobada. Control físico aún deshabilitado.', 'aprobada');
   }
   reject(id) {
-    if (this.#phase !== 'ready' || this.#busy || !this.#pending.some(x => x.id === id)) return Promise.resolve(false);
+    if (this.#suspended || this.#phase !== 'ready' || this.#busy || !this.#pending.some(x => x.id === id)) return Promise.resolve(false);
     return this.#change((key, signal) => this.#client.reject(key, id, signal), 'Solicitud rechazada.', 'rechazada');
   }
   revoke() {
@@ -212,7 +252,7 @@ export class AdminApprovalService {
       'Revocación solicitada. La parada física no está verificada.', 'revocado');
   }
   async endSupervision() {
-    if (!this.#key) return false;
+    if (!this.#key || this.#suspended) return false;
     this.#supervising = false; this.#lastBeat = 0;
     if (this.#beatTimer !== null) this.#clearInterval(this.#beatTimer);
     this.#beatTimer = null; this.#notify();
