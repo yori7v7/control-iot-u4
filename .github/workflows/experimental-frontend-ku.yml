@@ -1,0 +1,136 @@
+name: K-U integracion HTTPS efimera sin motores
+on:
+  push:
+    branches:
+      - feature/5-5k-portal-unico-invitado
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ku-https-real:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Frontend experimental
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Backend experimental separado
+        uses: actions/checkout@v4
+        with:
+          repository: yori7v7/vehiculo_iot_api_dev
+          ref: feature/5-5a-dispositivo-protocolo-aislado
+          path: backend-ku
+          persist-credentials: false
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Dependencias aisladas
+        run: |
+          npm ci
+          python -m pip install -r backend-ku/requirements.txt
+
+      - name: Chrome y NSS del runner
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            google-chrome --version
+          else
+            npx playwright install --with-deps chrome
+          fi
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libnss3-tools
+
+      - name: CA efimera y servidor HTTPS con identidad DNS verificada
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ku/private" "$HOME/.pki/nssdb"
+          chmod 700 "$RUNNER_TEMP/ku/private"
+          echo "KU_TEST_DIR=$RUNNER_TEMP/ku" >> "$GITHUB_ENV"
+          echo "KU_PRIVATE_DB=$RUNNER_TEMP/ku/private/ledger.sqlite3" >> "$GITHUB_ENV"
+          echo "KU_ROOT_CA=$RUNNER_TEMP/ku/root.crt" >> "$GITHUB_ENV"
+          echo "KU_SERVER_CRT=$RUNNER_TEMP/ku/server.crt" >> "$GITHUB_ENV"
+          echo "KU_SERVER_KEY=$RUNNER_TEMP/ku/server.key" >> "$GITHUB_ENV"
+          echo "NODE_EXTRA_CA_CERTS=$RUNNER_TEMP/ku/root.crt" >> "$GITHUB_ENV"
+          echo "KU_ADMIN_TEST_KEY=$(openssl rand -hex 32)" >> "$GITHUB_ENV"
+          echo "KU_CI_LAB=isolated-loopback-only" >> "$GITHUB_ENV"
+          echo "APP_ENV=development" >> "$GITHUB_ENV"
+          openssl req -x509 -newkey rsa:2048 -nodes \
+            -keyout "$RUNNER_TEMP/ku/root.key" \
+            -out "$RUNNER_TEMP/ku/root.crt" -days 1 \
+            -subj "/CN=KU-ephemeral-test-CA" \
+            -addext "basicConstraints=critical,CA:TRUE" \
+            -addext "keyUsage=critical,keyCertSign,cRLSign"
+          openssl req -new -newkey rsa:2048 -nodes \
+            -keyout "$RUNNER_TEMP/ku/server.key" \
+            -out "$RUNNER_TEMP/ku/server.csr" \
+            -subj "/CN=ks.localhost" \
+            -addext "subjectAltName=DNS:ks.localhost"
+          printf 'basicConstraints=critical,CA:FALSE\nsubjectAltName=DNS:ks.localhost\nextendedKeyUsage=serverAuth\nkeyUsage=critical,digitalSignature,keyEncipherment\n' \
+            > "$RUNNER_TEMP/ku/server.ext"
+          openssl x509 -req -in "$RUNNER_TEMP/ku/server.csr" \
+            -CA "$RUNNER_TEMP/ku/root.crt" \
+            -CAkey "$RUNNER_TEMP/ku/root.key" -CAcreateserial \
+            -out "$RUNNER_TEMP/ku/server.crt" -days 1 -sha256 \
+            -extfile "$RUNNER_TEMP/ku/server.ext"
+          chmod 600 "$RUNNER_TEMP/ku/"*.key
+          echo "127.0.0.1 ks.localhost" | sudo tee -a /etc/hosts > /dev/null
+          sudo cp "$RUNNER_TEMP/ku/root.crt" /usr/local/share/ca-certificates/ku-ephemeral.crt
+          sudo update-ca-certificates
+          certutil -N -d "sql:$HOME/.pki/nssdb" --empty-password || true
+          certutil -A -d "sql:$HOME/.pki/nssdb" -n "KU Ephemeral Lab Root" \
+            -t "C,," -i "$RUNNER_TEMP/ku/root.crt"
+          openssl verify -CAfile "$RUNNER_TEMP/ku/root.crt" "$RUNNER_TEMP/ku/server.crt"
+
+      - name: Iniciar K-U HTTPS solo en loopback
+        shell: bash
+        run: |
+          set -euo pipefail
+          (
+            cd backend-ku
+            python scripts/servidor_55ku_https_ci.py > "$KU_TEST_DIR/backend.log" 2>&1 &
+            echo $! > "$KU_TEST_DIR/server.pid"
+          )
+          ready=0
+          for i in $(seq 1 40); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --cacert "$KU_ROOT_CA" https://ks.localhost:9443/openapi.json || true)
+            if [ "$code" = "404" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            echo "K-U HTTPS no inicio correctamente; sin habilitar permisos."
+            cat "$KU_TEST_DIR/backend.log"
+            exit 1
+          fi
+          # HTTPS real con validacion de hostname, certificado y preflight.
+          curl --fail --silent --show-error --cacert "$KU_ROOT_CA" \
+            -X OPTIONS \
+            -H 'Origin: https://yori7v7.github.io' \
+            -H 'Access-Control-Request-Method: POST' \
+            -H 'Access-Control-Request-Headers: idempotency-key,x-browser-proposal' \
+            https://ks.localhost:9443/publico/vehiculos/1/solicitudes > /dev/null
+
+      - name: K-U Chrome real con CORS y certificado validado
+        run: npx playwright test assets/tests/ku-https-contract.spec.js --workers=1
+
+      - name: Cerrar y eliminar temporales de la prueba
+        if: always()
+        shell: bash
+        run: |
+          if [ -f "$RUNNER_TEMP/ku/server.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/ku/server.pid")" 2>/dev/null || true
+          fi
+          rm -rf "$RUNNER_TEMP/ku"
