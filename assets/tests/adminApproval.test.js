@@ -167,3 +167,12 @@ test('K-J: API key viaja en header, nunca en URL ni en almacenamiento', async ()
     row.options.credentials === 'omit' && row.options.cache === 'no-store'));
   assert.equal(typeof client.move, 'undefined');
 });
+
+test('K-J: HTTP 200 sin aprobación positiva no concede éxito', async () => {
+  const { service } = setup({ approve: async () => ack({ aprobada: false }) });
+  service.start('admin-local'); await flush(); await service.beginSupervision();
+  assert.equal(await service.approve(ID, 'supervised'), false);
+  assert.equal(service.state.phase, 'unavailable');
+  assert.equal(service.state.canApprove, false);
+  service.stop();
+});
