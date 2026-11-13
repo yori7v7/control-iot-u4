@@ -278,7 +278,7 @@ test('K-M: profesor y admin en la MISMA página, autorización virtual y revocac
   expect(lab.requests.filter(r => r.path.startsWith(ADMIN)).some(r => r.headers['x-api-key'] === ADMIN_KEY)).toBe(true);
   expect(lab.requests.filter(r => r.method === 'POST' &&
     /movimientos|acciones|ejecutar|cancelar|parada/.test(r.path))).toHaveLength(0);
-  expect(lab.requests.every(r => !r.path.includes(SECRET))).toBe(true);
+  expect(lab.requests.every(r => lab.tickets.every(t => !r.path.includes(t.secret)))).toBe(true);
   expect(await guest.evaluate(() => [localStorage.length, sessionStorage.length, document.cookie])).toEqual([0, 0, '']);
   expect(guestErrors).toEqual([]);
   expect(adminErrors).toEqual([]);
