@@ -258,3 +258,21 @@ test('K-N: detener durante pausa invalida cualquier futura reanudacion',async()=
   assert.equal(service.state.phase,'inactive');
   assert.equal(service.state.canDrive,false);
 });
+
+
+test('K-N: aprobación HTTP tardía no restaura permisos tras suspender la pestaña',async()=>{
+  let release;
+  const {service}=setup({approve:()=>new Promise(resolve=>{release=resolve})});
+  service.start('admin-local');await flush();
+  await service.beginSupervision();
+  const pending=service.approve(ID,'timed',120);
+  assert.equal(service.state.busy,true);
+  assert.equal(await service.pause(),true);
+  assert.equal(service.state.phase,'unavailable');
+  release(ack({aprobada:true}));
+  assert.equal(await pending,false);
+  assert.equal(service.state.phase,'unavailable');
+  assert.equal(service.state.canApprove,false);
+  assert.equal(service.state.canDrive,false);
+  service.stop();
+});
