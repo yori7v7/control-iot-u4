@@ -11,10 +11,9 @@ const ADMIN_KEY = 'clave-ficticia-km-no-publicar';
 const ROOT = '/publico/vehiculos/1/solicitudes';
 const ADMIN = '/admin/vehiculos/1/control-publico/solicitudes';
 const ACTION_BLOCK = '#direction-buttons button, #extra-buttons button';
-const SECRET = 'x'.repeat(43);
 
 function virtual(extra = {}) {
-  return { simulado: true, control_fisico: false, ...extra };
+  return { simulado: true, control_fisico: false, canDrive: false, ...extra };
 }
 
 async function prepareMockedPages(context, origin) {
@@ -53,7 +52,7 @@ async function prepareMockedPages(context, origin) {
     const cors = {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-API-Key, X-Browser-Session, Content-Type',
+      'Access-Control-Allow-Headers': 'X-API-Key, X-Browser-Session, X-Browser-Proposal, Idempotency-Key, Content-Type',
       'Cache-Control': 'no-store',
       'Referrer-Policy': 'no-referrer',
     };
@@ -102,16 +101,35 @@ async function prepareMockedPages(context, origin) {
 
     if (path === ROOT && method === 'POST') {
       if (headers['x-api-key'] || headers.authorization) return json({ detail: 'No enviar credenciales' }, 403);
+      const key = headers['idempotency-key'];
+      const proposal = headers['x-browser-proposal'];
+      if (!/^[A-Za-z0-9_-]{43}$/.test(key || '') ||
+          !/^[A-Za-z0-9_-]{43}$/.test(proposal || '') || key === proposal) {
+        return json({ detail: 'Identidad K-T ausente' }, 428);
+      }
+      const previous = tickets.find(x => x.key === key);
+      if (previous) {
+        if (previous.secret !== proposal || previous.status !== 'esperando_autorizacion') {
+          return json({ detail: 'Solicitud K-T ya no vigente' }, 409);
+        }
+        return json(virtual({
+          request_id: previous.id, browser_secret: previous.secret,
+          display_code: previous.code, estado: previous.status, idempotent_replay: true,
+        }), 200);
+      }
+      if (tickets.some(x => x.secret === proposal)) {
+        return json({ detail: 'Sesion duplicada' }, 409);
+      }
       index++;
       const ticket = {
         id: randomUUID(), code: index.toString(16).toUpperCase().padStart(8, '0'),
-        secret: (index.toString(16) + SECRET).slice(0, 43),
+        key, secret: proposal,
         status: 'esperando_autorizacion',
       };
       tickets.push(ticket);
       return json(virtual({
         request_id: ticket.id, browser_secret: ticket.secret,
-        display_code: ticket.code, estado: ticket.status,
+        display_code: ticket.code, estado: ticket.status, idempotent_replay: false,
       }), 201);
     }
     if (path === ROOT + '/estado' && method === 'GET') {
