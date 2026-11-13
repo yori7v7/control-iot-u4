@@ -544,6 +544,16 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
 #public-control-message { color: var(--signal); }
 .public-control-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
 .public-control-admin .form-check { margin: .55rem 0 .65rem; }
+.admin-requests { display: grid; gap: .55rem; border-top: 1px solid var(--edge); margin-top: .7rem; padding-top: .7rem; }
+.admin-requests h3 { font-size: .86rem; margin: 0; color: var(--signal); }
+.admin-requests label { font-size: .77rem; font-weight: 650; }
+.admin-requests-list { list-style: none; display: grid; gap: .4rem; margin: 0; padding: 0; }
+.admin-request-item { border: 1px solid var(--edge); border-radius: .45rem; padding: .5rem; }
+.admin-request-id { display: block; font: 690 .76rem var(--mono); color: var(--signal); }
+.admin-request-expires { display: block; margin: .25rem 0; font-size: .75rem; color: var(--muted); }
+.admin-request-actions, .admin-requests-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.admin-requests .btn { min-height: 44px; }
+.admin-requests-note { font-size: .73rem; margin: 0; }
 #public-exit-simulation { display: inline-flex; min-height: 24px; align-items: center; margin-top: .5rem; color: var(--muted); }
 .control-receipt {
   min-width: 0;
