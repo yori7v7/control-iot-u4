@@ -149,6 +149,14 @@ Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepci
 
 La fuente de Pages es **Deploy from a branch**, rama `main`, carpeta **/(root)**. El frontend usa recursos relativos y no requiere compilar JavaScript. GitHub Pages aplica `_config.yml` para excluir `assets/tests/`, `assets/docs/`, los archivos de desarrollo y las cachés. Las pruebas y la documentación se consultan en el repositorio. [Configuración de la fuente de Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
 
-La URL sin parámetros abre CONTROL real. MONITOREO usa `#monitoreo` en esa misma página. La simulación se activa mediante `?modo=simulacion` y genera respuestas de prueba solo para CONTROL. Los recursos se publican bajo `/control-iot-u4/assets/`. La ampliación 4.2 se entrega para revisión en una rama y su comprobación en Pages queda pendiente de integración.
+La URL sin parámetros abre CONTROL real. MONITOREO usa `#monitoreo` en esa misma página. La simulación se activa mediante `?modo=simulacion` y genera respuestas de prueba solo para CONTROL. Los recursos se publican bajo `/control-iot-u4/assets/`. **La vista MONITOREO de la práctica 4.2 ya se encuentra integrada en `main` y publicada mediante GitHub Pages**; la compilación y el despliegue de Pages para el commit `84c9d1d` terminaron correctamente. El monitoreo de datos vivos requiere que la API y la base de datos de AWS estén disponibles; su ausencia se indica en la interfaz y no demuestra un fallo de publicación.
 
 Bootstrap 5.3.8 se distribuye como CSS bajo licencia MIT. [Versión oficial](https://getbootstrap.com/docs/5.3/getting-started/download/) · [Licencia incluida](./assets/css/vendor/bootstrap-LICENSE.txt)
+
+## Entrega digital — Práctica 4.2 (13/11/2026)
+
+- **Aplicación web de CONTROL y MONITOREO:** https://yori7v7.github.io/control-iot-u4/
+- **Código fuente del frontend:** https://github.com/yori7v7/control-iot-u4
+- **Monitoreo directo, en el mismo sitio:** https://yori7v7.github.io/control-iot-u4/#monitoreo
+
+La parte digital incluye consulta del estado y de los últimos movimientos persistidos, actualizaciones por WSS, historial paginado y presentación adaptable. Los eventos del backend no constituyen una confirmación independiente del movimiento físico. Las funciones experimentales de admisión de visitantes y autorización remota se desarrollan en una rama aparte y **no** se presentan como habilitadas en esta entrega digital. Las pruebas físicas de la ampliación se realizan en una fecha posterior.
