@@ -329,3 +329,34 @@ test('K-AF: configuraciones sin deadline válido se rechazan', () => {
     }), TypeError);
   }
 });
+
+
+test('K-AF: una respuesta HTTP resuelta después de cancelar jamás cuenta como éxito', async () => {
+  const controller = new AbortController();
+  let completeFetch;
+  const client = new AdminApprovalClient({
+    apiUrl: 'https://api.example.com/', vehicleId: 1,
+    fetchImpl: () => new Promise(resolve => { completeFetch = resolve; }),
+  });
+  const request = client.pending('clave-local', controller.signal);
+  controller.abort();
+  completeFetch({ ok: true, status: 200, json: async () => ack({ solicitudes: [], turno_activo: false }) });
+  await assert.rejects(request, error => error?.name === 'AbortError');
+});
+
+test('K-AF: un JSON demorado no se acepta si la sesión fue cancelada', async () => {
+  const controller = new AbortController();
+  let completeJson;
+  const client = new AdminApprovalClient({
+    apiUrl: 'https://api.example.com/', vehicleId: 1,
+    fetchImpl: async () => ({
+      ok: true, status: 200,
+      json: () => new Promise(resolve => { completeJson = resolve; }),
+    }),
+  });
+  const request = client.pending('clave-local', controller.signal);
+  await Promise.resolve();
+  controller.abort();
+  completeJson(ack({ solicitudes: [], turno_activo: false }));
+  await assert.rejects(request, error => error?.name === 'AbortError');
+});
