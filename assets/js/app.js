@@ -373,12 +373,32 @@ async function start() {
     view.element('public-revoke').addEventListener('click', () => void publicControl.revoke());
   }
 
+  // K-N: la visibilidad y la red son condiciones para consultar permisos,
+  // nunca evidencia suficiente para habilitar el control físico.
+  const suspendAuthorizations = () => {
+    guestAdmission?.pause();
+    void adminApprovals?.pause(); // revocación remota best-effort; TTL del servidor es obligatorio.
+  };
+  const revalidateAuthorizations = () => {
+    if (!pageActive || document.hidden || !navigator.onLine) return;
+    guestAdmission?.resume();
+    adminApprovals?.resume(); // NO recupera supervisión automáticamente.
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) suspendAuthorizations();
+    else revalidateAuthorizations();
+  });
   window.addEventListener('online', () => {
+    revalidateAuthorizations();
     if (publicSimulation) startPublicControl();
     void refresh();
   });
-  window.addEventListener('offline', () => publicControl?.setOnline(false));
+  window.addEventListener('offline', () => {
+    suspendAuthorizations();
+    publicControl?.setOnline(false);
+  });
   window.addEventListener('pagehide', () => {
+    suspendAuthorizations();
     guestAdmission?.stop();
     adminApprovals?.stop();
     pageActive = false;
@@ -408,6 +428,7 @@ async function start() {
   if (publicSimulation) startPublicControl();
   else publicControl?.setOnline(false);
   if (guestAdmission && !api.hasApiKey) void guestAdmission.start();
+  if (document.hidden || !navigator.onLine) suspendAuthorizations();
   socket.start();
   void connection.start();
   void loadCatalog();
