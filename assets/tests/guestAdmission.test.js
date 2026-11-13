@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { GuestAdmissionService, GuestAdmissionClient } from '../js/services/GuestAdmissionService.js';
 
 const secret = 'x'.repeat(43);
-const reply = { browser_secret: secret, display_code: 'A1B2C3D4', estado: 'esperando_autorizacion' };
+const reply = { browser_secret: secret, display_code: 'A1B2C3D4', estado: 'esperando_autorizacion',
+  simulado: true, control_fisico: false, canDrive: false };
 const status = estado => ({ estado, display_code: reply.display_code, simulado: true, control_fisico: false });
 const make = (client) => {
   let tick = null, clears = 0;
@@ -147,4 +148,68 @@ test('K-N: solicitud inicial en vuelo se descarta al ocultar y reintenta sin per
   assert.equal(t.model.state.phase,'waiting');
   assert.equal(t.model.state.canDrive,false);
   t.model.stop();
+});
+
+
+test('K-T: mismo par aleatorio en reintentos tras perdida de respuesta',async()=>{
+  let attempts=0, saved;
+  const fetchImpl=async(url,opt)=>{
+    assert.equal(opt.method,'POST');
+    attempts++;
+    const key=opt.headers['Idempotency-Key'];
+    const proposal=opt.headers['X-Browser-Proposal'];
+    assert.match(key,/^[A-Za-z0-9_-]{43}$/);
+    assert.match(proposal,/^[A-Za-z0-9_-]{43}$/);
+    assert.notEqual(key,proposal);
+    if(saved){assert.equal(key,saved.key); assert.equal(proposal,saved.proposal);}
+    else saved={key,proposal};
+    if(attempts===1)throw new Error('HTTP aceptado, respuesta perdida');
+    return {ok:true,json:async()=>({
+      browser_secret:proposal,display_code:'A1B2C3D4',estado:'esperando_autorizacion',
+      simulado:true,control_fisico:false,canDrive:false,
+    })};
+  };
+  const client=new GuestAdmissionClient({apiUrl:'https://api.example.com/',vehicleId:1,fetchImpl});
+  const service=make({request:()=>client.request(),status:async()=>status('esperando_autorizacion')});
+  await service.model.start();
+  assert.equal(service.model.state.phase,'unavailable');
+  assert.equal(service.model.state.canDrive,false);
+  await service.tick();
+  for(let i=0;i<8;i++)await Promise.resolve();
+  assert.equal(attempts,2);
+  assert.equal(service.model.state.phase,'waiting');
+  assert.equal(service.model.state.canDrive,false);
+  service.model.stop();
+});
+
+test('K-T: cerrar elimina las claves K-T y una nueva solicitud usa otras',async()=>{
+  const seen=[];
+  const client=new GuestAdmissionClient({
+    apiUrl:'https://api.example.com/',vehicleId:1,
+    fetchImpl:async(_url,opt)=>{
+      seen.push({key:opt.headers['Idempotency-Key'],proposal:opt.headers['X-Browser-Proposal']});
+      return {ok:true,json:async()=>({...reply,browser_secret:opt.headers['X-Browser-Proposal']})};
+    },
+  });
+  await client.request(); await client.request();
+  assert.deepEqual(seen[0],seen[1]);
+  client.reset();
+  await client.request();
+  assert.notEqual(seen[0].key,seen[2].key);
+  assert.notEqual(seen[0].proposal,seen[2].proposal);
+});
+
+test('K-T: rechaza token falso, backend físico o secreto distinto',async()=>{
+  const base={...reply,browser_secret:'x'.repeat(43)};
+  const cases=[
+    {...base,simulado:false},
+    {...base,control_fisico:true},
+    {...base,canDrive:true},
+  ];
+  for (const fake of cases){
+    const client=new GuestAdmissionClient({apiUrl:'https://api.example.com/',vehicleId:1,
+      fetchImpl:async()=>({ok:true,json:async()=>fake})});
+    await assert.rejects(()=>client.request(),TypeError);
+  }
+  assert.equal(typeof GuestAdmissionClient.prototype.move,'undefined');
 });
