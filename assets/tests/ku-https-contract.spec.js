@@ -127,7 +127,10 @@ test('K-U: Chrome y cliente frontend real por HTTPS con CORS, idempotencia y rev
   expect(queue.data.solicitudes[0].request_id).toBe(created.first.id);
   expect(queue.data.control_fisico).toBe(false);
   expect(queue.data.canDrive).toBe(false);
-  expect(queue.cors).toBe(PAGES);
+  // JavaScript no puede leer Access-Control-Allow-Origin: no es una cabecera
+  // CORS-safelisted ni se expone. El GET cross-origin 200 demuestra que
+  // Chrome la aceptó; el preflight se verifica con curl en el workflow.
+  expect(queue.cors).toBeNull();
   expect(queue.cache).toBe('no-store');
 
   const supervised = await adminCall(admin, ADMIN_KEY, ADMIN + '/supervision', 'POST');
