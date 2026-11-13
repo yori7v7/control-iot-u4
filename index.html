@@ -263,6 +263,23 @@
           <button class="btn btn-outline-panel" id="public-revoke" type="button" disabled>Revocar turno</button>
         </div>
       </div>
+      <section class="admin-requests" id="admin-requests" aria-label="Autorizaciones de visitantes" hidden>
+        <h3>Solicitudes de acceso</h3>
+        <p class="muted" id="admin-requests-status" role="status">Sin sesión administrativa.</p>
+        <p class="muted">Verifica el código con el profesor antes de aprobar. Abrir el enlace no concede control.</p>
+        <ol class="admin-requests-list" id="admin-requests-list" aria-label="Solicitudes pendientes"></ol>
+        <label for="admin-approval-mode">Duración del turno</label>
+        <select class="form-select" id="admin-approval-mode">
+          <option value="supervised">Indefinido bajo supervisión</option>
+          <option value="timed">2 minutos</option>
+        </select>
+        <div class="admin-requests-actions">
+          <button class="btn btn-outline-panel" id="admin-supervision-start" type="button" disabled>Iniciar supervisión</button>
+          <button class="btn btn-outline-panel" id="admin-supervision-stop" type="button" disabled>Terminar supervisión</button>
+          <button class="btn btn-stop" id="admin-revoke-guest" type="button" disabled>Revocar turno</button>
+        </div>
+        <p class="muted admin-requests-note">Solo permisos virtuales. La parada física no está verificada.</p>
+      </section>
       <a id="public-exit-simulation" href="./" hidden>Salir de simulación</a>
     </div>
   </section>
