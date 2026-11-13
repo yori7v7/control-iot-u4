@@ -17,7 +17,7 @@ Demostrar que el navegador **no mantiene un permiso o supervisión verificable**
 - Pruebas unitarias: `assets/tests/guestAdmission.test.js` y `assets/tests/adminApproval.test.js` agregan caducidad al regresar, pérdida de red, respuestas tardías, petición inicial en vuelo, intento de revocación que falla, reloj atrasado y sesión cerrada.
 - Pruebas Chrome: `assets/tests/guest-admin-km.spec.js` ahora incluye cuatro E2E. Dos de K-M (dos navegadores y vista móvil) y dos de K-N (offline + permiso caducado + recarga sin storage, supervisor oculto + revocación + revalidación sin armar).
 - GitHub Actions `experimental-frontend-km.yml` ejecuta `npm test` y el E2E aislado: ningún mock llama a AWS, WSS, API real ni movimientos.
-- Evidencia confirmada anterior al test de carrera final: [CI 43375481783](https://github.com/yori7v7/control-iot-u4/actions/runs/43375481783) — **84/84 pruebas Node y 4/4 Chrome aprobadas**. La prueba adicional de respuesta tardía de autorización se añadió después y deberá constar en una ejecución posterior.
+- **Evidencia final del test de carrera:** [CI 43375594592](https://github.com/yori7v7/control-iot-u4/actions/runs/43375594592), commit `f0453963c173aa23cb0521141105bf2be7cc2ab5` — **85/85 pruebas Node y 4/4 Chrome aprobadas**, incluyendo la prueba adicional de aprobación HTTP tardía tras ocultar la pestaña. La documentación de este resultado se agregó posteriormente sin modificar la lógica.
 
 ## Limitaciones y medidas necesarias antes de AWS o motores
 
