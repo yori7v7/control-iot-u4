@@ -6,6 +6,7 @@ import { ApiClient, isApiKeyInput } from './services/ApiClient.js';
 import { ConnectionService } from './services/ConnectionService.js';
 import { isGuestDirection, isLoopbackHost, PublicControlClient } from './services/PublicControlClient.js';
 import { PublicControlService } from './services/PublicControlService.js';
+import { GuestAdmissionClient, GuestAdmissionService } from './services/GuestAdmissionService.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
 import { CommandService } from './controllers/CommandService.js';
 import { DemoController } from './controllers/DemoController.js';
@@ -28,6 +29,12 @@ async function start() {
   const simulation = publicSimulation || isSimulation(location.search);
   const transport = simulation ? (await import('./services/simulation.js')).createSimulation() : {};
   const api = new ApiClient({ simulation, ...transport });
+  // K-H: disabled until an audited public HTTPS backend exists; never grants motion.
+  const guestAdmission = !simulation && CONFIG.guestAdmissionEnabled
+    ? new GuestAdmissionService({
+        client: new GuestAdmissionClient({ apiUrl: CONFIG.apiUrl, vehicleId }),
+        onChange: state => view.setGuestAdmission(state),
+      }) : null;
   const indicators = new ConnectionIndicators(document);
   const monitoringView = new MonitoringView(document, vehicleId);
   const monitoring = new MonitoringController({
@@ -170,6 +177,7 @@ async function start() {
       ...publicControl.state,
       canEnable: publicControl.state.canEnable && canOpenWindow(),
     } : null);
+    if (guestAdmission) view.setGuestAdmission(guestAdmission.state);
     if (hasGuest()) view.setGuestCommand(publicControl.state.guestReceipt, { active: true });
     else {
       view.setGuestCommand(null);
@@ -285,7 +293,10 @@ async function start() {
     input.value = '';
     if (accepted && !publicSimulation) publicControl?.setAdminKey(key.trim());
     render();
-    if (accepted) dialog.close();
+    if (accepted) {
+      guestAdmission?.stop();
+      dialog.close();
+    }
     else {
       view.setSessionError('Introduce una clave válida para el encabezado de la API.');
       input.focus();
@@ -295,6 +306,7 @@ async function start() {
     if (!canCloseSession()) return;
     api.setApiKey('');
     publicControl?.setAdminKey('');
+    if (guestAdmission) void guestAdmission.start();
     dialog.close();
     render();
   });
@@ -348,6 +360,7 @@ async function start() {
   });
   window.addEventListener('offline', () => publicControl?.setOnline(false));
   window.addEventListener('pagehide', () => {
+    guestAdmission?.stop();
     pageActive = false;
     monitoring.deactivate();
     joystick.reset({ stop: true });
@@ -364,6 +377,7 @@ async function start() {
     pageActive = true;
     if (!simulation && currentView === 'monitoreo') void monitoring.activate();
     if (publicSimulation) startPublicControl();
+    if (guestAdmission && !api.hasApiKey) void guestAdmission.start();
     socket.start();
     void connection.start();
     void loadCatalog();
@@ -373,6 +387,7 @@ async function start() {
   selectView();
   if (publicSimulation) startPublicControl();
   else publicControl?.setOnline(false);
+  if (guestAdmission && !api.hasApiKey) void guestAdmission.start();
   socket.start();
   void connection.start();
   void loadCatalog();
