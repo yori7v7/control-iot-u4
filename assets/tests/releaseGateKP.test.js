@@ -39,7 +39,7 @@ test('K-P: los mock de admision no aparecen en configuracion de produccion', () 
 test('K-P: una falla de autorizacion no debe reactivar movimiento de joystick ni DEMO', () => {
   const src = read('assets/js/services/GuestAdmissionService.js');
   const admin = read('assets/js/services/AdminApprovalService.js');
-  assert.match(src, /get canDrive\(\)\s*\{\s*return false\s*;/);
+  assert.match(src, /get state\(\)\s*\{\s*return Object\.freeze\(\{[^}]*canDrive:\s*false/);
   assert.match(admin, /canDrive:\s*false/);
   assert.match(src, /pause\(\)/);
   assert.match(admin, /pause\(\)/);
