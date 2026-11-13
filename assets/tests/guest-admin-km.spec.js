@@ -169,7 +169,14 @@ async function prepareMockedPages(context, origin) {
       await route.fulfill({ response, body: next });
     });
     const errors = [];
-    page.on('pageerror', error => errors.push(error.message));
+    page.on('pageerror', error => errors.push('JS: ' + error.message));
+    page.on('console', message => {
+      if (message.type() === 'error') errors.push('Console: ' + message.text());
+    });
+    page.on('requestfailed', request => {
+      errors.push('Red: ' + request.method() + ' ' + request.url() + ' : ' +
+        request.failure()?.errorText);
+    });
     await page.goto(APP);
     return errors;
   }
