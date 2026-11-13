@@ -88,6 +88,21 @@ const ADMIN_STATUS = {
   rejected: 'La API rechazó la clave administrativa.',
   unavailable: 'No se pudieron verificar los permisos administrativos.',
 };
+// K-H no habilita el joystick; solo comunica estados de autorización.
+const GUEST_ADMISSION_LABELS = Object.freeze({
+  requesting: 'Solicitando permiso',
+  waiting: 'En espera',
+  approved_virtual: 'Permiso virtual',
+  revoked: 'Turno revocado',
+  unavailable: 'Sin acceso',
+});
+const GUEST_ADMISSION_MESSAGES = Object.freeze({
+  requesting: 'Solicitando acceso al administrador…',
+  waiting: 'Esperando autorización del administrador.',
+  approved_virtual: 'Autorización virtual concedida. Control físico deshabilitado.',
+  revoked: 'El turno fue revocado o caducó.',
+  unavailable: 'No se pudo comprobar el permiso. El control permanece bloqueado.',
+});
 
 function setText(node, content) {
   if (node.textContent !== content) node.textContent = content;
@@ -107,6 +122,7 @@ export class DashboardView {
   #demoNotice = null;
   #pressAnimations = new WeakMap();
   #publicControl = null;
+  #guestAdmission = null;
   #controlMode = { canStop: false, catalogStatus: 'Esperando catálogo' };
   #publicSimulation = false;
   #showingGuestReceipt = false;
@@ -274,13 +290,26 @@ export class DashboardView {
     else this.#setSupervision();
   }
 
+  setGuestAdmission(state) {
+    this.#guestAdmission = state?.phase !== 'inactive' ? state : null;
+    this.#renderControlMode();
+    if (!this.#guestAdmission) return;
+    const text = GUEST_ADMISSION_MESSAGES[state.phase] ?? GUEST_ADMISSION_MESSAGES.unavailable;
+    this.#text('public-control-role', 'Visitante');
+    this.#text('public-control-status', state.code ? `${text} Solicitud ${state.code}.` : text);
+    this.element('public-guest-actions').hidden = true;
+    this.element('public-admin-actions').hidden = true;
+  }
+
   #renderControlMode() {
     const { canStop, catalogStatus } = this.#controlMode;
     const state = this.#publicControl;
     const label = state?.simulation ? (state.role === 'guest' ? 'Tu turno' : PUBLIC_LABELS[state.status] ?? 'Turnos')
       : state && !canStop ? 'Turnos' : canStop ? 'HABILITADO' : 'BLOQUEADO';
     const trigger = this.element('open-public-control');
-    const text = catalogStatus || (state?.adminPermission === 'rejected' ? 'Clave rechazada' : label);
+    const guestLabel = this.#guestAdmission
+      ? GUEST_ADMISSION_LABELS[this.#guestAdmission.phase] ?? 'Sin acceso' : null;
+    const text = guestLabel || catalogStatus || (state?.adminPermission === 'rejected' ? 'Clave rechazada' : label);
     this.#text('control-mode', text);
     this.#text('control-mode-announcement', text);
     trigger.setAttribute('aria-label', `Turnos de control · ${text}`);
