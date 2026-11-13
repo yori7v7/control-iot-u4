@@ -191,7 +191,7 @@ export class GuestAdmissionClient {
     }
     const bytes = globalThis.crypto.getRandomValues(new Uint8Array(32));
     return globalThis.btoa(String.fromCharCode(...bytes))
-      .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
   }
 
   request() {
