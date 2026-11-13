@@ -170,14 +170,14 @@ export class AdminApprovalService {
     return true;
   }
 
-  async #change(operation, successMessage) {
+  async #change(operation, successMessage, successFlag) {
     if (!this.#key || this.#busy || this.#phase !== 'ready') return false;
     const generation = this.#generation; this.#busy = true; this.#notify();
     let ok = false;
     try {
       const result = await operation(this.#key, this.#abort.signal);
       if (generation !== this.#generation) return false;
-      if (result.control_fisico !== false || result.simulado !== true) throw new TypeError();
+      if (result.control_fisico !== false || result.simulado !== true || result[successFlag] !== true) throw new TypeError();
       this.#message = successMessage; ok = true;
     } catch {
       if (generation !== this.#generation) return false;
@@ -200,16 +200,16 @@ export class AdminApprovalService {
     if (!MODE.has(mode) || (mode === 'timed' &&
         (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 300))) return Promise.resolve(false);
     return this.#change((key, signal) => this.#client.approve(key, id, mode, seconds, signal),
-      'Solicitud aprobada. Control físico aún deshabilitado.');
+      'Solicitud aprobada. Control físico aún deshabilitado.', 'aprobada');
   }
   reject(id) {
     if (this.#phase !== 'ready' || this.#busy || !this.#pending.some(x => x.id === id)) return Promise.resolve(false);
-    return this.#change((key, signal) => this.#client.reject(key, id, signal), 'Solicitud rechazada.');
+    return this.#change((key, signal) => this.#client.reject(key, id, signal), 'Solicitud rechazada.', 'rechazada');
   }
   revoke() {
     if (!this.state.canRevoke) return Promise.resolve(false);
     return this.#change((key, signal) => this.#client.revoke(key, signal),
-      'Revocación solicitada. La parada física no está verificada.');
+      'Revocación solicitada. La parada física no está verificada.', 'revocado');
   }
   async endSupervision() {
     if (!this.#key) return false;
@@ -219,6 +219,6 @@ export class AdminApprovalService {
     // Require server revocation; failing leaves UI fail-closed until heartbeat TTL.
     if (this.#phase !== 'ready') return false;
     return this.#change((key, signal) => this.#client.revoke(key, signal),
-      'Supervisión finalizada. Revocación solicitada.');
+      'Supervisión finalizada. Revocación solicitada.', 'revocado');
   }
 }
