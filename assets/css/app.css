@@ -824,6 +824,28 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   .extra-buttons .btn { flex-direction: row; }
 }
 
+/* 4.2: portatiles/escritorio con Chrome ocupando parte de la pantalla.
+   1366 x 680 CSS px (captura 1365 x 768 con barra del navegador).
+   Reducir la demanda vertical real; nunca ocultar el overflow del documento
+   ni recortar joystick, botones, mensajes o MONITOREO. */
+@media (orientation: landscape) and (min-width: 64rem) and (min-height: 32.01rem) and (max-height: 44rem) {
+  :root {
+    --dial: clamp(160px, 32dvh, 234px);
+    --gap: clamp(5px, 1dvh, 10px);
+    --panel-pad: clamp(9px, 1.6dvh, 15px);
+  }
+  .topbar-inner { min-height: 3.55rem; padding-block: 2px; }
+  body[data-view="control"] .joystick-stage { gap: .3rem; padding-block: .3rem; }
+  body[data-view="control"] .direction-area { gap: .28rem; }
+  body[data-view="control"] .direction-buttons .btn {
+    min-height: clamp(var(--target), 7.2dvh, 56px);
+    gap: .12rem;
+    padding-block: .12rem;
+  }
+  body[data-view="control"] .extra-control { gap: .3rem; padding-top: .33rem; }
+  body[data-view="control"] .demo-controls { gap: .35rem; }
+}
+
 @media (orientation: landscape) and (max-height: 23.5rem) {
   :root { --dial: clamp(102px, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 253px), 217px); }
   .dashboard { grid-template-columns: minmax(18rem, 1.25fr) minmax(11rem, 1fr); }
