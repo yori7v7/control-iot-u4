@@ -176,3 +176,85 @@ test('K-J: HTTP 200 sin aprobación positiva no concede éxito', async () => {
   assert.equal(service.state.canApprove, false);
   service.stop();
 });
+
+
+test('K-N: ocultar admin revoca virtual best-effort y no reanuda supervisor',async()=>{
+  let revoked=0;
+  const {service,timers}=setup({revoke:async()=>{revoked++;return ack({revocado:true})}});
+  service.start('admin-local');await flush();
+  assert.equal(service.state.phase,'ready');
+  assert.equal(await service.beginSupervision(),true);
+  assert.equal(service.state.canApprove,true);
+  const acknowledged=await service.pause();
+  assert.equal(acknowledged,true);
+  assert.equal(revoked,1);
+  assert.equal(service.state.phase,'unavailable');
+  assert.equal(service.state.canApprove,false);
+  assert.equal(service.state.canDrive,false);
+  assert.equal(timers.size,0);
+  service.resume();
+  await flush();
+  assert.equal(service.state.phase,'ready');
+  assert.equal(service.state.supervising,false);
+  assert.equal(service.state.canApprove,false);
+  assert.equal(service.state.canSupervise,true);
+  service.stop();
+});
+
+test('K-N: sin red no se puede confirmar revocacion, pero la UI falla cerrada',async()=>{
+  const {service}=setup({pending:async()=>snapshot(true),
+    revoke:async()=>{throw Error('offline')}});
+  service.start('admin-local');await flush();
+  assert.equal(service.state.canRevoke,true);
+  const ack=await service.pause();
+  assert.equal(ack,false);
+  assert.equal(service.state.phase,'unavailable');
+  assert.equal(service.state.canApprove,false);
+  assert.equal(service.state.canRevoke,false);
+  assert.equal(await service.approve(ID,'timed',120),false);
+  service.stop();
+});
+
+test('K-N: respuesta admin pendiente no restaura estado tras pestaña oculta',async()=>{
+  let answer;
+  let n=0;
+  const {service}=setup({pending:()=>{
+    n++;
+    return n===1?new Promise(resolve=>{answer=resolve}):Promise.resolve(snapshot());
+  }});
+  service.start('admin-local');
+  const ack=await service.pause();
+  assert.equal(ack,false);
+  answer(snapshot());
+  await flush();
+  assert.equal(service.state.phase,'unavailable');
+  assert.equal(service.state.pending.length,0);
+  service.resume();
+  await flush();
+  assert.equal(service.state.phase,'ready');
+  assert.equal(service.state.canApprove,false);
+  assert.equal(n,2);
+  service.stop();
+});
+
+test('K-N: reloj retrocede y el latido deja de autorizar inmediatamente',async()=>{
+  const {service,setTime}=setup();
+  service.start('admin-local');await flush();
+  await service.beginSupervision();
+  assert.equal(service.state.canApprove,true);
+  setTime(900);
+  assert.equal(service.state.supervising,false);
+  assert.equal(service.state.canApprove,false);
+  service.stop();
+});
+
+test('K-N: detener durante pausa invalida cualquier futura reanudacion',async()=>{
+  const {service}=setup();
+  service.start('admin-local');await flush();await service.beginSupervision();
+  await service.pause();
+  service.stop();
+  service.resume();
+  await flush();
+  assert.equal(service.state.phase,'inactive');
+  assert.equal(service.state.canDrive,false);
+});
