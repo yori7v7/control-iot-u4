@@ -65,7 +65,11 @@ test('Ninguna API de movimiento ni contraseña de administrador',()=>{
 });
 test('HTTP sin credenciales ni token en URL',async()=>{
   let recorded;
-  const c=new GuestAdmissionClient({apiUrl:'https://api.example.com/',vehicleId:1,fetchImpl:async (url,opt)=>{recorded={url,opt};return {ok:true,json:async()=>reply}}});
+  const c=new GuestAdmissionClient({apiUrl:'https://api.example.com/',vehicleId:1,fetchImpl:async (url,opt)=>{
+    recorded={url,opt};
+    return {ok:true,json:async()=>({...reply,
+      browser_secret:opt.headers['X-Browser-Proposal'] || reply.browser_secret})};
+  }});
   await c.request();
   assert.equal(recorded.url,'https://api.example.com/publico/vehiculos/1/solicitudes');
   assert.equal(recorded.opt.credentials,'omit');assert.equal(recorded.opt.method,'POST');
