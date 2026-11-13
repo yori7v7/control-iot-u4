@@ -880,16 +880,21 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
 
 @media (orientation: landscape) and (max-height: 22rem) {
   .topbar-inner { min-height: 2.875rem; padding-block: 1px; }
-  .main-shell { --gap: 2px; }
+  .main-shell { --gap: 2px; padding-top: 1px; }
   .connectivity { border-block: 0; }
-  .drive-panel { padding-block: 3px; row-gap: 3px; }
+  .drive-panel { padding-block: 2px; row-gap: 3px; }
   .drive-panel > .panel-heading h2 { font-size: .68rem; white-space: nowrap; }
   .drive-panel .mode-label { padding: .15rem .24rem; }
   .joystick-stage { padding-block: 3px; gap: 2px; }
   .extra-control { border-top: 0; padding-top: 0; }
   .extra-buttons .btn { padding-inline: .1rem; font-size: .65rem; line-height: 1.08; }
-  .demo-panel { padding-block: 4px; gap: 3px; }
+  .demo-panel { padding-block: 2px; gap: 3px; }
   .demo-state[data-phase="canceled"] { -webkit-line-clamp: 1; }
+}
+
+/* Conservamos las áreas seguras, ajustando los 2 px residuales de altura. */
+@media (orientation: landscape) and (max-height: 25rem) {
+  .main-shell { padding-bottom: max(2px, var(--safe-bottom)); }
 }
 
 @media (orientation: landscape) and (max-width: 31rem), (orientation: portrait) and (max-width: 18rem) {
