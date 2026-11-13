@@ -309,7 +309,14 @@ test('K-AF: HTTP bloqueado agota deadline incluso con señal de sesión activa',
       });
     },
   });
-  await assert.rejects(client.pending('clave-local', controller.signal), /timeout|aborted/i);
+  // AbortSignal.timeout usa un timer no-ref en Node; mantener activo el
+  // proceso de prueba para observar realmente la expiración de la petición.
+  const keepEventLoopAlive = setTimeout(() => {}, 1000);
+  try {
+    await assert.rejects(client.pending('clave-local', controller.signal), /timeout|aborted/i);
+  } finally {
+    clearTimeout(keepEventLoopAlive);
+  }
   assert.equal(controller.signal.aborted, false, 'El timeout no debe invalidar la sesión del administrador.');
   assert.equal(observedSignal.aborted, true);
 });
