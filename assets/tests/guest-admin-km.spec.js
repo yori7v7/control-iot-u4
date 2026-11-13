@@ -172,19 +172,6 @@ async function prepareMockedPages(context, origin) {
         body: original.replace(oldCsp, "connect-src 'self' https://lab.invalid"),
       });
     });
-    // Instrumentacion exclusiva del mock para localizar el fallo de admision,
-    // sin imprimir browser_secret ni otras credenciales.
-    await page.route('**/assets/js/services/GuestAdmissionService.js', async route => {
-      const response = await route.fetch();
-      const original = await response.text();
-      const marker = `} catch (_error) {
-      if (!this.#active || generation !== this.#generation) return;`;
-      if (!original.includes(marker)) throw new Error('No se pudo instrumentar K-M');
-      await route.fulfill({ response, body: original.replace(marker,
-        `} catch (_error) {
-      console.error('[K-M guest catch]', _error?.name, _error?.message);
-      if (!this.#active || generation !== this.#generation) return;`) });
-    });
     await page.route('**/assets/js/config.js', async route => {
       const response = await route.fetch();
       const original = await response.text();
@@ -229,18 +216,6 @@ test('K-M: profesor y admin en la MISMA página, autorización virtual y revocac
   const lab = await prepareMockedPages(context, new URL(baseURL).origin);
   const guest = await context.newPage();
   const guestErrors = await lab.load(guest);
-  await guest.waitForTimeout(500);
-  console.log('[K-M DIAG] guest', JSON.stringify({
-    calls: lab.requests.map(x => x.method + ' ' + x.path),
-    ticketCount: lab.tickets.length, unexpected: lab.unexpected,
-    pageErrors: guestErrors,
-    csp: await guest.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content'),
-    config: await guest.evaluate(async () => {
-      const m = await import('./assets/js/config.js');
-      return { apiUrl: m.CONFIG.apiUrl, guestEnabled: m.CONFIG.guestAdmissionEnabled,
-        adminEnabled: m.CONFIG.adminApprovalEnabled };
-    }),
-  }));
   await expect(guest.locator('#control-mode')).toHaveText('En espera');
   const code = lab.tickets[0]?.code;
   expect(code).toMatch(/^[0-9A-F]{8}$/);
@@ -292,18 +267,6 @@ test('K-M: visitante móvil 390 × 844 muestra espera sin scroll horizontal ni c
   const guest = await context.newPage();
   await guest.setViewportSize({ width: 390, height: 844 });
   const errors = await lab.load(guest);
-  await guest.waitForTimeout(500);
-  console.log('[K-M DIAG] mobile', JSON.stringify({
-    calls: lab.requests.map(x => x.method + ' ' + x.path),
-    ticketCount: lab.tickets.length, unexpected: lab.unexpected,
-    pageErrors: errors,
-    csp: await guest.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content'),
-    config: await guest.evaluate(async () => {
-      const m = await import('./assets/js/config.js');
-      return { apiUrl: m.CONFIG.apiUrl, guestEnabled: m.CONFIG.guestAdmissionEnabled,
-        adminEnabled: m.CONFIG.adminApprovalEnabled };
-    }),
-  }));
   await expect(guest.locator('#control-mode')).toHaveText('En espera');
   await checkNoDrive(guest);
   expect(await guest.evaluate(() =>
