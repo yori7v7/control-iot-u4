@@ -15,8 +15,8 @@ export class GuestAdmissionService {
   #phase = 'inactive';
   #code = '';
 
-  constructor({ client, onChange = () => {}, setIntervalImpl = setInterval,
-    clearIntervalImpl = clearInterval, pollMs = 2000 } = {}) {
+  constructor({ client, onChange = () => {}, setIntervalImpl = globalThis.setInterval.bind(globalThis),
+    clearIntervalImpl = globalThis.clearInterval.bind(globalThis), pollMs = 2000 } = {}) {
     if (!client || typeof client.request !== 'function' || typeof client.status !== 'function' ||
         typeof onChange !== 'function' || !Number.isSafeInteger(pollMs) || pollMs < 1000) {
       throw new TypeError('Contrato de admisión inválido.');
