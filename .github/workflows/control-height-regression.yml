@@ -1,0 +1,34 @@
+name: Verificar ajuste de altura CONTROL 4.2
+on:
+  push:
+    branches: [fix/4-2-control-height-20261113]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  control-height-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependencias
+        run: npm ci
+      - name: Chrome
+        run: |
+          if ! command -v google-chrome >/dev/null 2>&1; then
+            npx playwright install --with-deps chrome
+          fi
+      - name: Pruebas Node (sin red ni motor)
+        run: npm test
+      - name: Altura exacta de CONTROL y matriz responsive
+        run: npx playwright test assets/tests/control-viewport-regression.spec.js assets/tests/responsive.spec.js --workers=2
+      - name: Regresión de MONITOREO
+        run: npx playwright test assets/tests/monitoring.spec.js --workers=2
