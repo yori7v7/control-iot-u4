@@ -63,6 +63,8 @@ jobs:
           echo "KU_ROOT_CA=$RUNNER_TEMP/ku/root.crt" >> "$GITHUB_ENV"
           echo "KU_SERVER_CRT=$RUNNER_TEMP/ku/server.crt" >> "$GITHUB_ENV"
           echo "KU_SERVER_KEY=$RUNNER_TEMP/ku/server.key" >> "$GITHUB_ENV"
+          echo "KU_PAGES_CRT=$RUNNER_TEMP/ku/pages.crt" >> "$GITHUB_ENV"
+          echo "KU_PAGES_KEY=$RUNNER_TEMP/ku/pages.key" >> "$GITHUB_ENV"
           echo "NODE_EXTRA_CA_CERTS=$RUNNER_TEMP/ku/root.crt" >> "$GITHUB_ENV"
           test_key="$(openssl rand -hex 32)"
           echo "::add-mask::$test_key"
@@ -87,14 +89,27 @@ jobs:
             -CAkey "$RUNNER_TEMP/ku/root.key" -CAcreateserial \
             -out "$RUNNER_TEMP/ku/server.crt" -days 1 -sha256 \
             -extfile "$RUNNER_TEMP/ku/server.ext"
+          openssl req -new -newkey rsa:2048 -nodes \
+            -keyout "$RUNNER_TEMP/ku/pages.key" \
+            -out "$RUNNER_TEMP/ku/pages.csr" \
+            -subj "/CN=yori7v7.github.io" \
+            -addext "subjectAltName=DNS:yori7v7.github.io,DNS:evil.example"
+          printf 'basicConstraints=critical,CA:FALSE\nsubjectAltName=DNS:yori7v7.github.io,DNS:evil.example\nextendedKeyUsage=serverAuth\nkeyUsage=critical,digitalSignature,keyEncipherment\n' \
+            > "$RUNNER_TEMP/ku/pages.ext"
+          openssl x509 -req -in "$RUNNER_TEMP/ku/pages.csr" \
+            -CA "$RUNNER_TEMP/ku/root.crt" \
+            -CAkey "$RUNNER_TEMP/ku/root.key" -CAcreateserial \
+            -out "$RUNNER_TEMP/ku/pages.crt" -days 1 -sha256 \
+            -extfile "$RUNNER_TEMP/ku/pages.ext"
           chmod 600 "$RUNNER_TEMP/ku/"*.key
-          echo "127.0.0.1 ks.localhost" | sudo tee -a /etc/hosts > /dev/null
+          echo "127.0.0.1 ks.localhost yori7v7.github.io evil.example" | sudo tee -a /etc/hosts > /dev/null
           sudo cp "$RUNNER_TEMP/ku/root.crt" /usr/local/share/ca-certificates/ku-ephemeral.crt
           sudo update-ca-certificates
           certutil -N -d "sql:$HOME/.pki/nssdb" --empty-password || true
           certutil -A -d "sql:$HOME/.pki/nssdb" -n "KU Ephemeral Lab Root" \
             -t "C,," -i "$RUNNER_TEMP/ku/root.crt"
           openssl verify -CAfile "$RUNNER_TEMP/ku/root.crt" "$RUNNER_TEMP/ku/server.crt"
+          openssl verify -CAfile "$RUNNER_TEMP/ku/root.crt" "$RUNNER_TEMP/ku/pages.crt"
 
       - name: Iniciar K-U HTTPS solo en loopback
         shell: bash
@@ -125,6 +140,27 @@ jobs:
             -H 'Access-Control-Request-Headers: idempotency-key,x-browser-proposal' \
             https://ks.localhost:9443/publico/vehiculos/1/solicitudes > /dev/null
 
+      - name: K-U Pages HTTPS local con mismo origen seguro
+        shell: bash
+        run: |
+          set -euo pipefail
+          # El dominio real se resuelve 127.0.0.1 SOLO en este runner.
+          sudo --preserve-env=GITHUB_ACTIONS,KU_CI_LAB,KU_PAGES_CRT,KU_PAGES_KEY,RUNNER_TEMP \
+            python3 -m assets.tests.ku_pages_https_ci > "$KU_TEST_DIR/pages.log" 2>&1 &
+          echo $! > "$KU_TEST_DIR/pages.pid"
+          ready=0
+          for i in $(seq 1 20); do
+            code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+              --cacert "$KU_ROOT_CA" https://yori7v7.github.io/control-iot-u4/ || true)
+            if [ "$code" = "200" ]; then ready=1; break; fi
+            sleep 1
+          done
+          if [ "$ready" != "1" ]; then
+            echo "K-U Pages local no inicio; ensayo cancelado"
+            cat "$KU_TEST_DIR/pages.log"
+            exit 1
+          fi
+
       - name: K-U Chrome real con CORS y certificado validado
         run: npx playwright test assets/tests/ku-https-contract.spec.js --workers=1
 
@@ -134,5 +170,8 @@ jobs:
         run: |
           if [ -f "$RUNNER_TEMP/ku/server.pid" ]; then
             kill "$(cat "$RUNNER_TEMP/ku/server.pid")" 2>/dev/null || true
+          fi
+          if [ -f "$RUNNER_TEMP/ku/pages.pid" ]; then
+            sudo kill "$(cat "$RUNNER_TEMP/ku/pages.pid")" 2>/dev/null || true
           fi
           rm -rf "$RUNNER_TEMP/ku"
