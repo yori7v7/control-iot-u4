@@ -72,3 +72,79 @@ test('HTTP sin credenciales ni token en URL',async()=>{
   assert.equal(recorded.opt.headers['X-Browser-Session'],secret);
   assert.ok(!recorded.url.includes(secret));
 });
+
+
+test('K-N: pestaña oculta invalida permiso, para polling y exige GET al volver',async()=>{
+  let calls=0;
+  const t=make({request:async()=>reply,status:async()=>{calls++;return status('autorizado')}});
+  await t.model.start();await t.model.refresh();
+  assert.equal(t.model.state.phase,'approved_virtual');
+  t.model.pause();
+  assert.equal(t.model.state.phase,'unavailable');
+  assert.equal(t.model.state.canDrive,false);
+  const before=calls;
+  await t.tick();
+  assert.equal(calls,before);
+  t.model.resume();
+  for(let i=0;i<4;i++) await Promise.resolve();
+  assert.equal(calls,before+1);
+  assert.equal(t.model.state.phase,'approved_virtual');
+  assert.equal(t.model.state.canDrive,false);
+  t.model.stop();
+});
+
+test('K-N: caducidad remota durante desconexion revoca al reconectar',async()=>{
+  let remote='autorizado';
+  const t=make({request:async()=>reply,status:async()=>status(remote)});
+  await t.model.start();await t.model.refresh();
+  assert.equal(t.model.state.phase,'approved_virtual');
+  t.model.pause();
+  remote='revocado_o_caducado';
+  t.model.resume();
+  for(let i=0;i<4;i++) await Promise.resolve();
+  assert.equal(t.model.state.phase,'revoked');
+  assert.equal(t.model.state.canDrive,false);
+  assert.equal(t.clears>=1,true);
+  t.model.stop();
+});
+
+test('K-N: respuesta HTTP tardia tras pausa nunca restaura permiso',async()=>{
+  let release;
+  let calls=0;
+  const t=make({request:async()=>reply,status:()=>{
+    calls++;
+    if(calls===1)return new Promise(resolve=>{release=resolve});
+    return Promise.resolve(status('revocado_o_caducado'));
+  }});
+  await t.model.start();
+  const pending=t.model.refresh();
+  t.model.pause();
+  release(status('autorizado'));
+  await pending;
+  assert.equal(t.model.state.phase,'unavailable');
+  t.model.resume();
+  for(let i=0;i<5;i++) await Promise.resolve();
+  assert.equal(t.model.state.phase,'revoked');
+  assert.equal(t.model.state.canDrive,false);
+  t.model.stop();
+});
+
+test('K-N: solicitud inicial en vuelo se descarta al ocultar y reintenta sin persistencia',async()=>{
+  let deliver;
+  let requests=0;
+  const t=make({request:()=>{
+    requests++;
+    return requests===1 ? new Promise(resolve=>{deliver=resolve}) : Promise.resolve(reply);
+  },status:async()=>status('esperando_autorizacion')});
+  const first=t.model.start();
+  t.model.pause();
+  deliver(reply);
+  await first;
+  assert.equal(t.model.state.phase,'unavailable');
+  t.model.resume();
+  for(let i=0;i<5;i++) await Promise.resolve();
+  assert.equal(requests,2);
+  assert.equal(t.model.state.phase,'waiting');
+  assert.equal(t.model.state.canDrive,false);
+  t.model.stop();
+});
