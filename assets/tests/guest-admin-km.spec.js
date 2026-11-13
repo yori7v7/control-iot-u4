@@ -338,7 +338,8 @@ test('K-N: supervisor oculto intenta revocar y no se rearma al volver',async({co
     document.dispatchEvent(new Event('visibilitychange'));
   });
   await expect(admin.locator('#control-mode')).toHaveText('Permisos sin verificar');
-  await expect(admin.getByRole('button',{name:`Autorizar solicitud ${code}`})).toBeDisabled();
+  // La vista borra todos los tickets mientras la sesión no está verificada.
+  await expect(admin.getByRole('button',{name:`Autorizar solicitud ${code}`})).toHaveCount(0);
   await expect.poll(()=>lab.requests.filter(x=>x.path===ADMIN+'/revocar'&&x.method==='POST').length).toBe(1);
 
   await admin.evaluate(()=>{
