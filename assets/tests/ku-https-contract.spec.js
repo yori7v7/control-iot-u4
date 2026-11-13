@@ -33,6 +33,22 @@ test.setTimeout(55_000);
 async function isolatedPage(context, pageOrigin = PAGES) {
   const page = await context.newPage();
   const requests = [];
+  const failures = [];
+  page.on('requestfailed', request => {
+    const u = new URL(request.url());
+    if (u.origin === API) {
+      failures.push(request.method() + ' ' + u.pathname + ': ' +
+        (request.failure()?.errorText || 'desconocido'));
+    }
+  });
+  page.on('console', message => {
+    if (message.type() === 'error') {
+      const value = message.text().slice(0, 400);
+      if (/CORS|certificate|ERR_CERT|fetch|network/i.test(value)) {
+        failures.push('Chrome: ' + value);
+      }
+    }
+  });
   await page.route('**/*', route => {
     const req = route.request();
     const url = new URL(req.url());
@@ -54,7 +70,7 @@ async function isolatedPage(context, pageOrigin = PAGES) {
     return route.abort('blockedbyclient'); // Prohibido consultar GitHub/AWS.
   });
   await page.goto(pageOrigin + '/control-iot-u4/');
-  return { page, requests };
+  return { page, requests, failures };
 }
 
 async function adminCall(page, key, path, method = 'GET', body) {
@@ -75,10 +91,14 @@ async function adminCall(page, key, path, method = 'GET', body) {
 
 test('K-U: Chrome y cliente frontend real por HTTPS con CORS, idempotencia y revocación virtual', async ({ context }) => {
   expect(ADMIN_KEY.length).toBeGreaterThanOrEqual(32);
-  const { page: guest, requests: guestRequests } = await isolatedPage(context);
-  const { page: admin, requests: adminRequests } = await isolatedPage(context);
+  const { page: guest, requests: guestRequests, failures: guestFailures } =
+    await isolatedPage(context);
+  const { page: admin, requests: adminRequests, failures: adminFailures } =
+    await isolatedPage(context);
 
-  const created = await guest.evaluate(async ({ api, modulePath }) => {
+  let created;
+  try {
+    created = await guest.evaluate(async ({ api, modulePath }) => {
     const { GuestAdmissionClient } = await import(modulePath);
     const c = new GuestAdmissionClient({ apiUrl: api, vehicleId: 1 });
     globalThis.__kuGuest = c;
@@ -93,7 +113,14 @@ test('K-U: Chrome y cliente frontend real por HTTPS con CORS, idempotencia y rev
         canDrive: repeat.canDrive },
       current: { estado: current.estado, canDrive: current.canDrive },
     };
-  }, { api: API, modulePath: MODULE });
+    }, { api: API, modulePath: MODULE });
+  } catch (error) {
+    console.error('[K-U diag HTTPS]', JSON.stringify({
+      guestFailures, adminFailures,
+      apiRequests: [...guestRequests, ...adminRequests].map(x => x.method + ' ' + x.path),
+    }));
+    throw error;
+  }
   expect(created.first.id).toMatch(/^[a-f0-9-]{36}$/);
   expect(created.first.code).toMatch(/^[A-F0-9]{8}$/);
   expect(created.first).toMatchObject({
