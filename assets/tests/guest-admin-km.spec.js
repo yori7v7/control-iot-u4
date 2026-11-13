@@ -166,7 +166,7 @@ async function prepareMockedPages(context, origin) {
 
 async function checkNoDrive(page) {
   await expect(page.locator(ACTION_BLOCK)).toHaveCount(12);
-  await expect(page.locator(ACTION_BLOCK + ':enabled')).toHaveCount(0);
+  await expect(page.locator('#direction-buttons button:enabled, #extra-buttons button:enabled')).toHaveCount(0);
   await expect(page.locator('#joystick')).toHaveAttribute('aria-disabled', 'true');
   await expect(page.locator('#stop')).toBeDisabled();
   await expect(page.locator('#demo-start')).toBeDisabled();
