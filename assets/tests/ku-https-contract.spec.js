@@ -154,8 +154,12 @@ test('K-U: Chrome y cliente frontend real por HTTPS con CORS, idempotencia y rev
   expect(ended.canDrive).toBe(false);
 
   const all = [...guestRequests, ...adminRequests];
-  expect(all.some(r => r.method === 'OPTIONS')).toBe(true); // CORS real
+  // Playwright no siempre emite eventos "request" para preflights CORS
+  // que Chrome realiza internamente. El workflow comprueba OPTIONS con
+  // un curl HTTPS verificado; aqui se confirma que el fetch cross-origin
+  // real supero la politica del navegador sin desactivar seguridad.
   expect(all.some(r => r.method === 'POST' && r.path === ROOT)).toBe(true);
+  expect(all.some(r => r.method === 'GET' && r.path === ADMIN)).toBe(true);
   expect(all.some(r => /movimientos|acciones|ejecutar|cancelar|parada/.test(r.path))).toBe(false);
   // La sesión vive solo en memoria; no se guardó en storage ni cookie.
   expect(await guest.evaluate(() => [localStorage.length, sessionStorage.length, document.cookie]))
