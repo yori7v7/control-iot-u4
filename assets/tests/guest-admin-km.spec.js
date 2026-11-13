@@ -199,7 +199,12 @@ async function prepareMockedPages(context, origin) {
     return errors;
   }
 
-  return { requests, unexpected, tickets, load };
+  const expireTickets = () => {
+    for (const ticket of tickets) ticket.status = 'revocado_o_caducado';
+    active = null;
+    supervised = false;
+  };
+  return { requests, unexpected, tickets, load, expireTickets };
 }
 
 async function checkNoDrive(page) {
@@ -278,5 +283,71 @@ test('K-M: visitante móvil 390 × 844 muestra espera sin scroll horizontal ni c
   await guest.keyboard.press('Escape');
   await expect(guest.locator('#public-control')).toBeHidden();
   expect(errors).toEqual([]);
+  expect(lab.unexpected).toEqual([]);
+});
+
+
+test('K-N: invitado desconectado no conserva permiso y detecta caducidad al volver',async({context,baseURL})=>{
+  const lab=await prepareMockedPages(context,new URL(baseURL).origin);
+  const guest=await context.newPage();
+  await lab.load(guest);
+  await expect(guest.locator('#control-mode')).toHaveText('En espera');
+  await guest.evaluate(()=>window.dispatchEvent(new Event('offline')));
+  await expect(guest.locator('#control-mode')).toHaveText('Sin acceso');
+  await checkNoDrive(guest);
+
+  // Caducidad impuesta por el servidor mientras el navegador no consulta.
+  lab.expireTickets();
+  await guest.evaluate(()=>window.dispatchEvent(new Event('online')));
+  await expect(guest.locator('#control-mode')).toHaveText('Turno revocado');
+  await checkNoDrive(guest);
+  const reads=lab.requests.filter(x=>x.path===ROOT+'/estado');
+  expect(reads.length).toBeGreaterThanOrEqual(1);
+  expect(lab.requests.some(x=>x.method==='POST'&&/movimientos|acciones|parada/.test(x.path))).toBe(false);
+  expect(lab.unexpected).toEqual([]);
+
+  // Recarga: el browser_secret anterior nunca se conserva en storage.
+  const first=lab.tickets[0].id;
+  await guest.reload();
+  await expect(guest.locator('#control-mode')).toHaveText('En espera');
+  expect(lab.tickets.at(-1).id).not.toBe(first);
+  expect(await guest.evaluate(()=>[localStorage.length,sessionStorage.length,document.cookie])).toEqual([0,0,'']);
+});
+
+test('K-N: supervisor oculto intenta revocar y no se rearma al volver',async({context,baseURL})=>{
+  const lab=await prepareMockedPages(context,new URL(baseURL).origin);
+  const guest=await context.newPage();
+  await lab.load(guest);
+  await expect(guest.locator('#control-mode')).toHaveText('En espera');
+  const code=lab.tickets[0].code;
+
+  const admin=await context.newPage();
+  await lab.load(admin);
+  await admin.locator('#open-session').click();
+  const dialog=admin.getByRole('dialog');
+  await dialog.getByLabel('Clave API').fill(ADMIN_KEY);
+  await dialog.locator('#risk-ack').check();
+  await dialog.locator('#save-session').click();
+  await admin.locator('#open-public-control').click();
+  await expect(admin.getByRole('button',{name:`Autorizar solicitud ${code}`})).toBeVisible();
+  await admin.locator('#admin-supervision-start').click();
+  await expect(admin.getByRole('button',{name:`Autorizar solicitud ${code}`})).toBeEnabled();
+
+  await admin.evaluate(()=>{
+    Object.defineProperty(document,'hidden',{configurable:true,value:true});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(admin.locator('#control-mode')).toHaveText('Permisos sin verificar');
+  await expect(admin.getByRole('button',{name:`Autorizar solicitud ${code}`})).toBeDisabled();
+  await expect.poll(()=>lab.requests.filter(x=>x.path===ADMIN+'/revocar'&&x.method==='POST').length).toBe(1);
+
+  await admin.evaluate(()=>{
+    Object.defineProperty(document,'hidden',{configurable:true,value:false});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(admin.locator('#control-mode')).toContainText('solicitud(es)');
+  await expect(admin.getByRole('button',{name:`Autorizar solicitud ${code}`})).toBeDisabled();
+  await checkNoDrive(admin);
+  expect(lab.requests.some(x=>x.method==='POST'&&x.path.endsWith('/aprobar'))).toBe(false);
   expect(lab.unexpected).toEqual([]);
 });
