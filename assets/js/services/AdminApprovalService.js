@@ -80,7 +80,7 @@ export class AdminApprovalService {
   #lastBeat = 0; #phase = 'inactive'; #message = ''; #pending = []; #active = false;
 
   constructor({ client, onChange = () => {}, clock = () => Date.now(),
-    setIntervalImpl = setInterval, clearIntervalImpl = clearInterval } = {}) {
+    setIntervalImpl = globalThis.setInterval.bind(globalThis), clearIntervalImpl = globalThis.clearInterval.bind(globalThis) } = {}) {
     if (!client || !['pending','heartbeat','approve','reject','revoke'].every(x => typeof client[x] === 'function')
         || typeof onChange !== 'function') throw new TypeError('Cliente de aprobación inválido.');
     this.#client = client; this.#onChange = onChange; this.#clock = clock;
