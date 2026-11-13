@@ -45,20 +45,35 @@ export class GuestAdmissionService {
     this.#active = true;
     const generation = ++this.#generation;
     this.#notify('requesting', '');
+    await this.#requestInitial(generation);
+  }
+
+  async #requestInitial(generation) {
+    if (!this.#active || this.#suspended || generation !== this.#generation || this.#busy) return;
+    this.#busy = true;
     try {
       const row = await this.#client.request();
       if (!this.#active || this.#suspended || generation !== this.#generation) return;
       if (typeof row?.browser_secret !== 'string' || row.browser_secret.length < 32 ||
-          !/^[A-F0-9]{8}$/.test(row.display_code) || row.estado !== 'esperando_autorizacion') {
+          !/^[A-F0-9]{8}$/.test(row.display_code) || row.estado !== 'esperando_autorizacion' ||
+          row.simulado !== true || row.control_fisico !== false || row.canDrive !== false) {
         throw new TypeError('Respuesta de solicitud inválida.');
       }
       this.#browserSecret = row.browser_secret; // ONLY memory. Never put in URL or storage.
+      this.#stopPolling();
       this.#notify('waiting', row.display_code);
       this.#timer = this.#setInterval(() => void this.refresh(), this.#pollMs);
     } catch (_error) {
       if (!this.#active || this.#suspended || generation !== this.#generation) return;
       this.#browserSecret = '';
       this.#notify('unavailable', '');
+      // Si se pierde la respuesta 201, el cliente repite EL MISMO par K-T
+      // en vez de crear tickets nuevos. Nunca solicita movimiento físico.
+      if (this.#timer === null) {
+        this.#timer = this.#setInterval(() => void this.#requestInitial(generation), this.#pollMs);
+      }
+    } finally {
+      if (generation === this.#generation) this.#busy = false;
     }
   }
 
@@ -129,6 +144,7 @@ export class GuestAdmissionService {
     this.#stopPolling();
     this.#busy = false;
     this.#browserSecret = '';
+    this.#client.reset?.();
     this.#notify('inactive', '');
   }
 }
@@ -138,6 +154,7 @@ export class GuestAdmissionClient {
   #api;
   #fetch;
   #vehicleId;
+  #pendingPair = null;
 
   constructor({ apiUrl, vehicleId, fetchImpl = globalThis.fetch.bind(globalThis) } = {}) {
     const url = new URL(apiUrl);
@@ -151,9 +168,13 @@ export class GuestAdmissionClient {
 
   get #path() { return `/publico/vehiculos/${this.#vehicleId}/solicitudes`; }
 
-  async #request(path, { method = 'GET', secret } = {}) {
+  async #request(path, { method = 'GET', secret, pair } = {}) {
     const headers = { Accept: 'application/json' };
     if (secret) headers['X-Browser-Session'] = secret;
+    if (pair) {
+      headers['Idempotency-Key'] = pair.key;
+      headers['X-Browser-Proposal'] = pair.secret;
+    }
     const response = await this.#fetch(`${this.#api}${path}`, {
       method, headers, credentials: 'omit', cache: 'no-store', redirect: 'error',
       referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(5000),
@@ -162,7 +183,39 @@ export class GuestAdmissionClient {
     return response.json();
   }
 
-  request() { return this.#request(this.#path, { method: 'POST' }); }
+  // Aleatoriedad criptográfica del navegador; nunca Math.random.
+  static #newRandomToken() {
+    if (typeof globalThis.crypto?.getRandomValues !== 'function' ||
+        typeof globalThis.btoa !== 'function') {
+      throw new Error('Sin generador criptográfico de sesiones seguro.');
+    }
+    const bytes = globalThis.crypto.getRandomValues(new Uint8Array(32));
+    return globalThis.btoa(String.fromCharCode(...bytes))
+      .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+  }
+
+  request() {
+    // Las dos claves viven solamente en RAM y permanecen iguales si el POST
+    // fue aceptado pero su respuesta se perdió. Se reemplazan SOLO al cerrar.
+    if (this.#pendingPair === null) {
+      const key = GuestAdmissionClient.#newRandomToken();
+      let secret = GuestAdmissionClient.#newRandomToken();
+      while (secret === key) secret = GuestAdmissionClient.#newRandomToken();
+      this.#pendingPair = { key, secret };
+    }
+    return this.#request(this.#path, { method: 'POST', pair: this.#pendingPair })
+      .then(row => {
+        if (row?.browser_secret !== this.#pendingPair?.secret ||
+            row?.simulado !== true || row?.control_fisico !== false ||
+            row?.canDrive !== false) {
+          throw new TypeError('El servidor no confirmó la misma sesión virtual.');
+        }
+        return row;
+      });
+  }
+
+  reset() { this.#pendingPair = null; }
+
   status(secret) {
     if (typeof secret !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(secret)) {
       throw new TypeError('Sesión de navegador inválida.');
