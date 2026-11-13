@@ -10,6 +10,7 @@ export class GuestAdmissionService {
   #timer = null;
   #generation = 0;
   #active = false;
+  #suspended = false;
   #browserSecret = '';
   #busy = false;
   #phase = 'inactive';
@@ -40,12 +41,13 @@ export class GuestAdmissionService {
 
   async start() {
     if (this.#active) return;
+    this.#suspended = false;
     this.#active = true;
     const generation = ++this.#generation;
     this.#notify('requesting', '');
     try {
       const row = await this.#client.request();
-      if (!this.#active || generation !== this.#generation) return;
+      if (!this.#active || this.#suspended || generation !== this.#generation) return;
       if (typeof row?.browser_secret !== 'string' || row.browser_secret.length < 32 ||
           !/^[A-F0-9]{8}$/.test(row.display_code) || row.estado !== 'esperando_autorizacion') {
         throw new TypeError('Respuesta de solicitud inválida.');
@@ -54,20 +56,20 @@ export class GuestAdmissionService {
       this.#notify('waiting', row.display_code);
       this.#timer = this.#setInterval(() => void this.refresh(), this.#pollMs);
     } catch (_error) {
-      if (!this.#active || generation !== this.#generation) return;
+      if (!this.#active || this.#suspended || generation !== this.#generation) return;
       this.#browserSecret = '';
       this.#notify('unavailable', '');
     }
   }
 
   async refresh() {
-    if (!this.#active || !this.#browserSecret || this.#busy) return;
+    if (!this.#active || this.#suspended || !this.#browserSecret || this.#busy) return;
     const generation = this.#generation;
     const secret = this.#browserSecret;
     this.#busy = true;
     try {
       const row = await this.#client.status(secret);
-      if (!this.#active || generation !== this.#generation) return;
+      if (!this.#active || this.#suspended || generation !== this.#generation) return;
       if (!row || row.control_fisico !== false || row.simulado !== true ||
           !['esperando_autorizacion', 'autorizado', 'revocado_o_caducado'].includes(row.estado) ||
           row.display_code !== this.#code) {
@@ -81,11 +83,38 @@ export class GuestAdmissionService {
         this.#notify(row.estado === 'autorizado' ? 'approved_virtual' : 'waiting');
       }
     } catch (_error) {
-      if (this.#active && generation === this.#generation) this.#notify('unavailable');
+      if (this.#active && !this.#suspended && generation === this.#generation) this.#notify('unavailable');
       // Keep polling if a browser session already exists. No movement at any phase.
     } finally {
       if (generation === this.#generation) this.#busy = false;
     }
+  }
+
+  /** K-N: oculta o sin red = sin autorización comprobable.
+   * El secreto solo vive en RAM y se conserva para revalidarlo; NO habilita mando.
+   */
+  pause() {
+    if (!this.#active || this.#suspended) return;
+    this.#suspended = true;
+    this.#generation++;
+    this.#stopPolling();
+    this.#busy = false;
+    this.#notify('unavailable');
+  }
+
+  /** Al regresar no reutilizamos el estado anterior: GET al servidor primero. */
+  resume() {
+    if (!this.#active || !this.#suspended) return;
+    this.#suspended = false;
+    if (!this.#browserSecret) {
+      // El POST inicial pudo quedar en vuelo; nuevos tickets expiran en servidor.
+      this.#active = false;
+      void this.start();
+      return;
+    }
+    this.#notify('unavailable');
+    void this.refresh();
+    this.#timer = this.#setInterval(() => void this.refresh(), this.#pollMs);
   }
 
   #stopPolling() {
@@ -95,6 +124,7 @@ export class GuestAdmissionService {
 
   stop() {
     this.#active = false;
+    this.#suspended = false;
     this.#generation++;
     this.#stopPolling();
     this.#busy = false;
