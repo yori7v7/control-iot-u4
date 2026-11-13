@@ -120,6 +120,24 @@ async function prepareMockedPages(context, origin) {
         : json({ detail: 'Sesión no disponible' }, 401);
     }
 
+    // El frontend conserva el sondeo legacy de estado; es SOLO GET
+    // y el laboratorio lo mantiene cerrado (sin ventana ni movimientos).
+    if (method === 'GET' && path === '/publico/vehiculos/1/control') {
+      return json({
+        id_vehiculo: 1, habilitado: false, estado: 'cerrado',
+        vence_ventana_en: null, hora_servidor: new Date().toISOString(),
+        revision: 0, simulado: false,
+      });
+    }
+    if (method === 'GET' && path === '/admin/vehiculos/1/control-publico') {
+      return json({
+        id_vehiculo: 1, habilitado: false, estado: 'cerrado',
+        vence_ventana_en: null, hora_servidor: new Date().toISOString(),
+        revision: 0, simulado: false, inicio_ventana_en: null,
+        id_turno_auditoria: null, turno_vence_en: null, parada: null,
+        motivo_bloqueo: null,
+      });
+    }
     if (method === 'GET' && path === '/') {
       return json({ status: 'ok', environment: 'development', service: 'Fixture K-M' });
     }
