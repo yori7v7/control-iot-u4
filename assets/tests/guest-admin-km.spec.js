@@ -154,6 +154,19 @@ async function prepareMockedPages(context, origin) {
         body: original.replace(oldCsp, "connect-src 'self' https://lab.invalid"),
       });
     });
+    // Instrumentacion exclusiva del mock para localizar el fallo de admision,
+    // sin imprimir browser_secret ni otras credenciales.
+    await page.route('**/assets/js/services/GuestAdmissionService.js', async route => {
+      const response = await route.fetch();
+      const original = await response.text();
+      const marker = `} catch (_error) {
+      if (!this.#active || generation !== this.#generation) return;`;
+      if (!original.includes(marker)) throw new Error('No se pudo instrumentar K-M');
+      await route.fulfill({ response, body: original.replace(marker,
+        `} catch (_error) {
+      console.error('[K-M guest catch]', _error?.name, _error?.message);
+      if (!this.#active || generation !== this.#generation) return;`) });
+    });
     await page.route('**/assets/js/config.js', async route => {
       const response = await route.fetch();
       const original = await response.text();
