@@ -1071,6 +1071,12 @@ body[data-view="monitoreo"] .deck-notice { display: none; }
   #monitor-event { flex: 1 0 100%; }
 }
 
+/* 568 × 320: el historial y el aviso de DEMO pueden añadir 1-5 px
+   cuando se actualizan por WSS. Preservar las filas y paginación completas. */
+@media (orientation: landscape) and (max-height: 22rem) {
+  .monitor-report, .monitor-history { padding: 5px; }
+}
+
 @media (max-width: 18rem) {
   .monitor-pagination { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .monitor-page-status { grid-area: 1 / 1 / 2 / -1; }
