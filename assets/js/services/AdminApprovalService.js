@@ -29,7 +29,7 @@ export class AdminApprovalClient {
   #base;
   #fetch;
 
-  constructor({ apiUrl, vehicleId, fetchImpl = globalThis.fetch } = {}) {
+  constructor({ apiUrl, vehicleId, fetchImpl = globalThis.fetch.bind(globalThis) } = {}) {
     const url = new URL(apiUrl);
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
         url.pathname !== '/' || !Number.isSafeInteger(vehicleId) || vehicleId <= 0 ||
