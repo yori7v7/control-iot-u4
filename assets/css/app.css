@@ -1074,7 +1074,7 @@ body[data-view="monitoreo"] .deck-notice { display: none; }
 /* 568 × 320: el historial y el aviso de DEMO pueden añadir 1-5 px
    cuando se actualizan por WSS. Preservar las filas y paginación completas. */
 @media (orientation: landscape) and (max-height: 22rem) {
-  .monitor-report, .monitor-history { padding: 5px; }
+  .monitor-report, .monitor-history { padding: 4px; }
 }
 
 @media (max-width: 18rem) {
