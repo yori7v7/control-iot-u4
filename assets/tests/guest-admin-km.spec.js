@@ -141,6 +141,19 @@ async function prepareMockedPages(context, origin) {
   });
 
   async function load(page) {
+    // El CSP de producción permite exclusivamente la API real. En estas
+    // pruebas aisladas sustituimos SOLO EN MEMORIA esa allowlist por el
+    // dominio ficticio interceptado; no se cambia index.html del repositorio.
+    await page.route('**/control-iot-u4/', async route => {
+      const response = await route.fetch();
+      const original = await response.text();
+      const oldCsp = "connect-src 'self' https://100-30-4-62.nip.io wss://100-30-4-62.nip.io";
+      if (!original.includes(oldCsp)) throw new Error('CSP distinto: no iniciar K-M');
+      await route.fulfill({
+        response,
+        body: original.replace(oldCsp, "connect-src 'self' https://lab.invalid"),
+      });
+    });
     await page.route('**/assets/js/config.js', async route => {
       const response = await route.fetch();
       const original = await response.text();
