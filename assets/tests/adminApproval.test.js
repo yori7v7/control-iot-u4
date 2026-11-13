@@ -276,3 +276,49 @@ test('K-N: aprobación HTTP tardía no restaura permisos tras suspender la pesta
   assert.equal(service.state.canDrive,false);
   service.stop();
 });
+
+
+test('K-AF: cancelación de sesión y timeout permanecen combinados', async () => {
+  const controller = new AbortController();
+  let passedSignal;
+  const client = new AdminApprovalClient({
+    apiUrl: 'https://api.example.com/', vehicleId: 1,
+    fetchImpl: async (_url, options) => {
+      passedSignal = options.signal;
+      return { ok: true, json: async () => ack({ solicitudes: [], turno_activo: false }) };
+    },
+  });
+  await client.pending('clave-local', controller.signal);
+  assert.ok(passedSignal);
+  assert.notEqual(passedSignal, controller.signal, 'No puede perderse el deadline al recibir señal de sesión.');
+  assert.equal(passedSignal.aborted, false);
+  controller.abort();
+  assert.equal(passedSignal.aborted, true, 'Cerrar el panel debe cancelar la petición.');
+});
+
+test('K-AF: HTTP bloqueado agota deadline incluso con señal de sesión activa', async () => {
+  const controller = new AbortController();
+  let observedSignal;
+  const client = new AdminApprovalClient({
+    apiUrl: 'https://api.example.com/', vehicleId: 1, timeoutMs: 25,
+    fetchImpl: async (_url, options) => {
+      observedSignal = options.signal;
+      return new Promise((_resolve, reject) => {
+        if (options.signal.aborted) return reject(options.signal.reason);
+        options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+      });
+    },
+  });
+  await assert.rejects(client.pending('clave-local', controller.signal), /timeout|aborted/i);
+  assert.equal(controller.signal.aborted, false, 'El timeout no debe invalidar la sesión del administrador.');
+  assert.equal(observedSignal.aborted, true);
+});
+
+test('K-AF: configuraciones sin deadline válido se rechazan', () => {
+  for (const timeoutMs of [0, -1, 1.5, NaN, Infinity, 60001, '5000']) {
+    assert.throws(() => new AdminApprovalClient({
+      apiUrl: 'https://api.example.com/', vehicleId: 1, timeoutMs,
+      fetchImpl: async () => ({ ok: true, json: async () => ({}) }),
+    }), TypeError);
+  }
+});
