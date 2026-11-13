@@ -34,7 +34,7 @@ export class AdminApprovalClient {
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash ||
         url.pathname !== '/' || !Number.isSafeInteger(vehicleId) || vehicleId <= 0 ||
         typeof fetchImpl !== 'function') throw new TypeError('Origen de autorización inválido.');
-    this.#base = `${url.origin}/admin/vehiculos/${vehicleId}/solicitudes`;
+    this.#base = `${url.origin}/admin/vehiculos/${vehicleId}/control-publico/solicitudes`;
     this.#fetch = fetchImpl;
   }
 
