@@ -12,7 +12,7 @@ const API = 'https://100-30-4-62.nip.io';
 const VISITOR = '/publico/vehiculos/1/solicitudes';
 const ADMIN = '/admin/vehiculos/1/control-publico/solicitudes';
 const KEY = process.env.KX_ADMIN_TEST_KEY || '';
-const BUTTONS = '#direction-buttons button, #extra-buttons button';
+const BUTTONS = '#direction-buttons button:enabled, #extra-buttons button:enabled';
 
 test.use({
   ignoreHTTPSErrors: false,
@@ -39,7 +39,7 @@ async function actualPage(context) {
 
 async function noMotorUI(page) {
   await expect(page.locator('#joystick')).toHaveAttribute('aria-disabled', 'true');
-  await expect(page.locator(BUTTONS + ':enabled')).toHaveCount(0);
+  await expect(page.locator(BUTTONS)).toHaveCount(0);
   await expect(page.locator('#stop')).toBeDisabled();
   await expect(page.locator('#demo-start')).toBeDisabled();
   await expect(page.locator('#demo-cancel')).toBeDisabled();
