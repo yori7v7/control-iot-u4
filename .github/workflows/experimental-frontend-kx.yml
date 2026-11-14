@@ -60,6 +60,9 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/kx/private" "$HOME/.pki/nssdb"
           chmod 700 "$RUNNER_TEMP/kx/private"
+          # El proceso FastAPI CI usa root solo para enlazar HTTPS :443;
+          # ownership.py exige que el directorio SQLite pertenezca al mismo UID.
+          sudo chown root:root "$RUNNER_TEMP/kx/private"
           echo "KX_TEST_DIR=$RUNNER_TEMP/kx" >> "$GITHUB_ENV"
           echo "PUBLIC_VIRTUAL_ADMISSION_SQLITE_PATH=$RUNNER_TEMP/kx/private/tickets.sqlite3" >> "$GITHUB_ENV"
           echo "KX_SERVER_CRT=$RUNNER_TEMP/kx/api.crt" >> "$GITHUB_ENV"
