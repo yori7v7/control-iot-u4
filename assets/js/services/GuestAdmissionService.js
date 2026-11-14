@@ -85,7 +85,7 @@ export class GuestAdmissionService {
     try {
       const row = await this.#client.status(secret);
       if (!this.#active || this.#suspended || generation !== this.#generation) return;
-      if (!row || row.control_fisico !== false || row.simulado !== true ||
+      if (!row || row.control_fisico !== false || row.simulado !== true || row.canDrive !== false ||
           !['esperando_autorizacion', 'autorizado', 'revocado_o_caducado'].includes(row.estado) ||
           row.display_code !== this.#code) {
         throw new TypeError('Respuesta de autorización no verificable.');
