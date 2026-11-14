@@ -1,6 +1,6 @@
 /** K-M: prueba E2E del sitio de una sola URL, SIN AWS, WSS o motores.
  * Únicamente este test sustituye config.js en memoria y simula las rutas HTTPS.
- * config.js del repositorio, main y GitHub Pages quedan con flags false.
+ * main y GitHub Pages vigentes quedan con permisos apagados.
  */
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
@@ -193,13 +193,14 @@ async function prepareMockedPages(context, origin) {
     await page.route('**/assets/js/config.js', async route => {
       const response = await route.fetch();
       const original = await response.text();
+      // Solo sustituir el origen de red EN MEMORIA; los permisos
+      // virtuales YA son reales en esta rama, y el control físico debe
+      // permanecer bloqueado por app.js.
       const next = original
-        .replace("const apiUrl = 'https://100-30-4-62.nip.io';", `const apiUrl = '${LAB}';`)
-        .replace('guestAdmissionEnabled: false', 'guestAdmissionEnabled: true')
-        .replace('adminApprovalEnabled: false', 'adminApprovalEnabled: true');
+        .replace("const apiUrl = 'https://100-30-4-62.nip.io';", `const apiUrl = '${LAB}';`);
       if (next === original || !next.includes(`const apiUrl = '${LAB}';`) ||
-          next.includes('guestAdmissionEnabled: false') ||
-          next.includes('adminApprovalEnabled: false')) {
+          !next.includes('guestAdmissionEnabled: true') ||
+          !next.includes('adminApprovalEnabled: true')) {
         throw new Error('La configuracion K-M ha cambiado; NO activar conexiones externas.');
       }
       await route.fulfill({ response, body: next });
