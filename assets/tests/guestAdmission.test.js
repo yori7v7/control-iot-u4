@@ -5,7 +5,7 @@ import { GuestAdmissionService, GuestAdmissionClient } from '../js/services/Gues
 const secret = 'x'.repeat(43);
 const reply = { browser_secret: secret, display_code: 'A1B2C3D4', estado: 'esperando_autorizacion',
   simulado: true, control_fisico: false, canDrive: false };
-const status = estado => ({ estado, display_code: reply.display_code, simulado: true, control_fisico: false });
+const status = estado => ({ estado, display_code: reply.display_code, simulado: true, control_fisico: false, canDrive: false });
 const make = (client) => {
   let tick = null, clears = 0;
   const updates = [];
@@ -216,4 +216,13 @@ test('K-T: rechaza token falso, backend físico o secreto distinto',async()=>{
     await assert.rejects(()=>client.request(),TypeError);
   }
   assert.equal(typeof GuestAdmissionClient.prototype.move,'undefined');
+});
+
+
+test('K-AH: una respuesta de estado con canDrive verdadero nunca concede permiso virtual',async()=>{
+  const t=make({request:async()=>reply,status:async()=>({...status('autorizado'),canDrive:true})});
+  await t.model.start();await t.model.refresh();
+  assert.equal(t.model.state.phase,'unavailable');
+  assert.equal(t.model.state.canDrive,false);
+  t.model.stop();
 });
