@@ -4,7 +4,8 @@
  */
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const CODE = /^[A-F0-9]{8}$/;
-const MODE = new Set(['supervised', 'timed']);
+// El backend HTTPS K-V solo admite turnos virtuales temporales (hasta 120 s).
+const MODE = new Set(['timed']);
 
 function verifiedList(data) {
   if (!data || !Array.isArray(data.solicitudes) || data.solicitudes.length > 20 ||
@@ -72,11 +73,11 @@ export class AdminApprovalClient {
   heartbeat(key, signal) { return this.#call('/supervision', key, { method: 'POST', signal }); }
   approve(key, id, mode, seconds, signal) {
     if (!UUID.test(id) || !MODE.has(mode) ||
-        (mode === 'timed' && (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 300))) {
+        (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 120)) {
       throw new TypeError('Selección de autorización no válida.');
     }
     const data = { modo: mode };
-    if (mode === 'timed') data.segundos = seconds;
+    data.segundos = seconds;
     return this.#call(`/${id}/aprobar`, key, { method: 'POST', data, signal });
   }
   reject(key, id, signal) {
@@ -248,10 +249,9 @@ export class AdminApprovalService {
     return ok;
   }
 
-  approve(id, mode = 'supervised', seconds = null) {
+  approve(id, mode = 'timed', seconds = 120) {
     if (!this.state.canApprove || !this.#pending.some(x => x.id === id)) return Promise.resolve(false);
-    if (!MODE.has(mode) || (mode === 'timed' &&
-        (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 300))) return Promise.resolve(false);
+    if (!MODE.has(mode) || (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 120)) return Promise.resolve(false);
     return this.#change((key, signal) => this.#client.approve(key, id, mode, seconds, signal),
       'Solicitud aprobada. Control físico aún deshabilitado.', 'aprobada');
   }
