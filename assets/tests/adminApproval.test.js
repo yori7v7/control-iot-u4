@@ -53,8 +53,10 @@ test('K-J: aprobación solo después de latido supervisado', async () => {
   await flush();
   assert.equal(await service.beginSupervision(), true);
   assert.equal(service.state.canApprove, true);
-  assert.equal(await service.approve(ID, 'supervised'), true);
+  assert.equal(await service.approve(ID, 'timed', 120), true);
   assert.equal(calls[0][1], ID);
+  assert.equal(calls[0][2], 'timed');
+  assert.equal(calls[0][3], 120);
   assert.equal(service.state.canDrive, false);
   service.stop();
 });
@@ -76,6 +78,8 @@ test('K-J: turno limitado de 120 segundos', async () => {
   assert.equal(await service.approve(ID, 'timed', 120), true);
   assert.equal(seconds, 120);
   assert.equal(await service.approve(ID, 'timed', 900), false);
+  assert.equal(await service.approve(ID, 'timed', 121), false);
+  assert.equal(await service.approve(ID, 'timed', 120), false);
   service.stop();
 });
 
@@ -159,9 +163,13 @@ test('K-J: API key viaja en header, nunca en URL ni en almacenamiento', async ()
     },
   });
   await client.pending('clave-no-compartir');
-  await client.approve('clave-no-compartir', ID, 'supervised', null);
+  await client.approve('clave-no-compartir', ID, 'timed', 120);
   assert.equal(requests[0].url, 'https://api.example.com/admin/vehiculos/1/control-publico/solicitudes');
   assert.equal(requests[1].options.method, 'POST');
+  assert.deepEqual(JSON.parse(requests[1].options.body), {modo: 'timed', segundos: 120});
+  await assert.rejects(client.approve('clave-no-compartir', ID, 'supervised', null), TypeError);
+  await assert.rejects(client.approve('clave-no-compartir', ID, 'timed', 121), TypeError);
+  assert.equal(requests.length, 2);
   assert.equal(requests[0].options.headers['X-API-Key'], 'clave-no-compartir');
   assert.ok(requests.every(row => !row.url.includes('clave-no-compartir') &&
     row.options.credentials === 'omit' && row.options.cache === 'no-store'));
