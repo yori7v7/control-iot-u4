@@ -6,6 +6,8 @@ import { ApiClient, isApiKeyInput } from './services/ApiClient.js';
 import { ConnectionService } from './services/ConnectionService.js';
 import { isGuestDirection, isLoopbackHost, PublicControlClient } from './services/PublicControlClient.js';
 import { PublicControlService } from './services/PublicControlService.js';
+import { GuestAdmissionClient, GuestAdmissionService } from './services/GuestAdmissionService.js';
+import { AdminApprovalClient, AdminApprovalService } from './services/AdminApprovalService.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
 import { CommandService } from './controllers/CommandService.js';
 import { DemoController } from './controllers/DemoController.js';
@@ -28,6 +30,24 @@ async function start() {
   const simulation = publicSimulation || isSimulation(location.search);
   const transport = simulation ? (await import('./services/simulation.js')).createSimulation() : {};
   const api = new ApiClient({ simulation, ...transport });
+  // K-H: disabled until an audited public HTTPS backend exists; never grants motion.
+  const guestAdmission = !simulation && CONFIG.guestAdmissionEnabled
+    ? new GuestAdmissionService({
+        client: new GuestAdmissionClient({ apiUrl: CONFIG.apiUrl, vehicleId }),
+        onChange: state => view.setGuestAdmission(state),
+      }) : null;
+  // K-J: experimental admin inbox in the existing inspector. NO physical commands.
+  const adminApprovals = !simulation && CONFIG.adminApprovalEnabled
+    ? new AdminApprovalService({
+        client: new AdminApprovalClient({ apiUrl: CONFIG.apiUrl, vehicleId }),
+        onChange: state => view.setAdminApproval(state, {
+          startSupervision: () => adminApprovals.beginSupervision(),
+          endSupervision: () => adminApprovals.endSupervision(),
+          approve: (id, mode, seconds) => adminApprovals.approve(id, mode, seconds),
+          reject: id => adminApprovals.reject(id),
+          revoke: () => adminApprovals.revoke(),
+        }),
+      }) : null;
   const indicators = new ConnectionIndicators(document);
   const monitoringView = new MonitoringView(document, vehicleId);
   const monitoring = new MonitoringController({
@@ -60,6 +80,7 @@ async function start() {
   });
   const hasGuest = () => publicSimulation && publicControl.state.role === 'guest';
   const canControl = () => {
+    if (CONFIG.adminApprovalEnabled) return false; // Until commands use a single safe WSS coordinator.
     if (!api.hasApiKey || vehicle?.active !== true) return false;
     if (!publicControl) return true;
     const { adminPermission, adminReady, status, windowOpen, busy } = publicControl.state;
@@ -170,6 +191,8 @@ async function start() {
       ...publicControl.state,
       canEnable: publicControl.state.canEnable && canOpenWindow(),
     } : null);
+    if (guestAdmission) view.setGuestAdmission(guestAdmission.state);
+    if (adminApprovals) view.setAdminApproval(adminApprovals.state);
     if (hasGuest()) view.setGuestCommand(publicControl.state.guestReceipt, { active: true });
     else {
       view.setGuestCommand(null);
@@ -283,9 +306,15 @@ async function start() {
     const key = input.value;
     const accepted = publicSimulation ? isApiKeyInput(key) && publicControl.setAdminKey(key.trim()) : api.setApiKey(key);
     input.value = '';
-    if (accepted && !publicSimulation) publicControl?.setAdminKey(key.trim());
+    if (accepted && !publicSimulation) {
+      publicControl?.setAdminKey(key.trim());
+      adminApprovals?.start(key.trim());
+    }
     render();
-    if (accepted) dialog.close();
+    if (accepted) {
+      guestAdmission?.stop();
+      dialog.close();
+    }
     else {
       view.setSessionError('Introduce una clave válida para el encabezado de la API.');
       input.focus();
@@ -295,6 +324,8 @@ async function start() {
     if (!canCloseSession()) return;
     api.setApiKey('');
     publicControl?.setAdminKey('');
+    adminApprovals?.stop();
+    if (guestAdmission) void guestAdmission.start();
     dialog.close();
     render();
   });
@@ -342,12 +373,34 @@ async function start() {
     view.element('public-revoke').addEventListener('click', () => void publicControl.revoke());
   }
 
+  // K-N: la visibilidad y la red son condiciones para consultar permisos,
+  // nunca evidencia suficiente para habilitar el control físico.
+  const suspendAuthorizations = () => {
+    guestAdmission?.pause();
+    void adminApprovals?.pause(); // revocación remota best-effort; TTL del servidor es obligatorio.
+  };
+  const revalidateAuthorizations = () => {
+    if (!pageActive || document.hidden || !navigator.onLine) return;
+    guestAdmission?.resume();
+    adminApprovals?.resume(); // NO recupera supervisión automáticamente.
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) suspendAuthorizations();
+    else revalidateAuthorizations();
+  });
   window.addEventListener('online', () => {
+    revalidateAuthorizations();
     if (publicSimulation) startPublicControl();
     void refresh();
   });
-  window.addEventListener('offline', () => publicControl?.setOnline(false));
+  window.addEventListener('offline', () => {
+    suspendAuthorizations();
+    publicControl?.setOnline(false);
+  });
   window.addEventListener('pagehide', () => {
+    suspendAuthorizations();
+    guestAdmission?.stop();
+    adminApprovals?.stop();
     pageActive = false;
     monitoring.deactivate();
     joystick.reset({ stop: true });
@@ -364,6 +417,7 @@ async function start() {
     pageActive = true;
     if (!simulation && currentView === 'monitoreo') void monitoring.activate();
     if (publicSimulation) startPublicControl();
+    if (guestAdmission && !api.hasApiKey) void guestAdmission.start();
     socket.start();
     void connection.start();
     void loadCatalog();
@@ -373,6 +427,8 @@ async function start() {
   selectView();
   if (publicSimulation) startPublicControl();
   else publicControl?.setOnline(false);
+  if (guestAdmission && !api.hasApiKey) void guestAdmission.start();
+  if (document.hidden || !navigator.onLine) suspendAuthorizations();
   socket.start();
   void connection.start();
   void loadCatalog();

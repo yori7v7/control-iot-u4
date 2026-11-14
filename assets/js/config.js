@@ -4,6 +4,10 @@ const vehicleId = 1;
 export const CONFIG = Object.freeze({
   apiUrl,
   vehicleId,
+  // K-H: OFF until the HTTPS public admission API is deployed and audited.
+  guestAdmissionEnabled: false,
+  // K-J: admin inbox is not usable until secure remote HTTPS endpoints exist.
+  adminApprovalEnabled: false,
   wsUrl: `wss://${new URL(apiUrl).host}/ws/vehiculos/${vehicleId}`,
   requestTimeoutMs: 12000,
   healthTimeoutMs: 6000,

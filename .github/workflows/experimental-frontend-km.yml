@@ -1,0 +1,35 @@
+name: K-M frontend experimental (sin AWS)
+on:
+  push:
+    branches:
+      - feature/5-5k-portal-unico-invitado
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  navegador-virtual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Descargar rama experimental
+        uses: actions/checkout@v4
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Dependencias
+        run: npm ci
+      - name: Pruebas de servicios sin red
+        run: npm test
+      - name: Comprobar Chrome disponible (sin instalación innecesaria)
+        run: |
+          if command -v google-chrome >/dev/null 2>&1; then
+            google-chrome --version
+          else
+            npx playwright install --with-deps chrome
+          fi
+      - name: K-M dos navegadores sin AWS ni motores
+        run: npx playwright test assets/tests/guest-admin-km.spec.js --workers=1
