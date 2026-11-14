@@ -41,14 +41,13 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if relative == "assets/js/config.js":
+            # Verificar el archivo REAL: la rama ya lleva ambos flags activos.
+            # No parchear fuentes ni desactivar protecciones del navegador.
             source = data.decode("utf-8")
-            required = ("guestAdmissionEnabled: false", "adminApprovalEnabled: false")
+            required = ("guestAdmissionEnabled: true", "adminApprovalEnabled: true")
             if not all(source.count(x) == 1 for x in required):
-                self.send_error(503, "Configuracion experimental distinta")
+                self.send_error(503, "Flags K-X no coinciden")
                 return
-            source = source.replace(required[0], "guestAdmissionEnabled: true")
-            source = source.replace(required[1], "adminApprovalEnabled: true")
-            data = source.encode("utf-8")
 
         media = mimetypes.guess_type(relative)[0] or "application/octet-stream"
         if relative.endswith(".js"):
