@@ -1,4 +1,5 @@
 import { formatCommandName, formatCommandReferences } from './commandLabels.js';
+import { CONFIG } from '../config.js';
 
 const DIRECTIONS = {
   AVANZAR_IZQUIERDA: 'diagonal-up-left',
@@ -248,12 +249,17 @@ export class DashboardView {
   setControl({ armed, canCommand, canStop, canClose, busy, catalogReady, catalogStatus }) {
     this.#controlMode = { canStop, catalogStatus };
     this.#renderControlMode();
-    const sessionLabel = armed ? 'Sesión de control' : 'Habilitar control';
+    const virtualOnly = CONFIG.guestAdmissionEnabled && CONFIG.adminApprovalEnabled;
+    const sessionLabel = virtualOnly ? 'Administrar permisos' :
+      armed ? 'Sesión de control' : 'Habilitar control';
     this.#text('session-label', sessionLabel);
     this.element('open-session').title = sessionLabel;
     const scope = this.#publicSimulation ? 'simulado' : 'real';
-    this.#text('session-title', armed ? `Sesión de control ${scope}` : `Habilitar control ${scope}`);
-    this.#text('save-session', armed ? 'Actualizar clave' : 'Habilitar');
+    this.#text('session-title', virtualOnly ? 'Administrar permisos virtuales' :
+      armed ? `Sesión de control ${scope}` : `Habilitar control ${scope}`);
+    this.#text('save-session', virtualOnly
+      ? armed ? 'Actualizar clave de permisos' : 'Abrir permisos'
+      : armed ? 'Actualizar clave' : 'Habilitar');
     this.element('save-session').disabled = busy;
     this.element('clear-session').hidden = !armed;
     this.element('clear-session').disabled = !canClose;
