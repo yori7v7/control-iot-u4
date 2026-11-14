@@ -1,6 +1,7 @@
 /** 5.5-K-P — puerta de liberación en rama experimental.
  * No consume red, no usa navegador real y no interactúa con el ESP.
- * Si alguien activa permisos públicos sin completar auditoría, CI falla.
+ * Esta rama habilita SOLO admisión virtual; CI falla si el joystick físico deja de estar bloqueado.
+ * No fusionar esta rama al main del control físico legado.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,9 +13,9 @@ import { CONFIG } from '../js/config.js';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../');
 const read = (relative) => readFileSync(resolve(ROOT, relative), 'utf8');
 
-test('K-P: admision y aprobacion remotas siguen desactivadas en la version exportable', () => {
-  assert.equal(CONFIG.guestAdmissionEnabled, false);
-  assert.equal(CONFIG.adminApprovalEnabled, false);
+test('K-P: rama experimental activa SOLO admisión y aprobación virtuales juntas', () => {
+  assert.equal(CONFIG.guestAdmissionEnabled, true);
+  assert.equal(CONFIG.adminApprovalEnabled, true);
 });
 
 test('K-P: habilitar administracion experimental bloquea TODOS los comandos de actuacion', () => {
@@ -29,10 +30,10 @@ test('K-P: el CSP oficial permite solo la API HTTPS y WSS legadas', () => {
   assert.doesNotMatch(html, /lab\.invalid|192\.168\.1\.82:8443/);
 });
 
-test('K-P: los mock de admision no aparecen en configuracion de produccion', () => {
+test('K-P: no hay URL de laboratorio ni simuladores en config experimental', () => {
   const cfg = read('assets/js/config.js');
-  assert.match(cfg, /guestAdmissionEnabled:\s*false/);
-  assert.match(cfg, /adminApprovalEnabled:\s*false/);
+  assert.match(cfg, /guestAdmissionEnabled:\s*true/);
+  assert.match(cfg, /adminApprovalEnabled:\s*true/);
   assert.doesNotMatch(cfg, /lab\.invalid|192\.168\.1\.82|\/publico\/vehiculos\/1\/solicitudes/);
 });
 
