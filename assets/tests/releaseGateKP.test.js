@@ -37,6 +37,17 @@ test('K-P: no hay URL de laboratorio ni simuladores en config experimental', () 
   assert.doesNotMatch(cfg, /lab\.invalid|192\.168\.1\.82|\/publico\/vehiculos\/1\/solicitudes/);
 });
 
+test('K-P: portal virtual visible sin confundir permisos con control fisico', () => {
+  const html = read('index.html');
+  const view = read('assets/js/ui/DashboardView.js');
+  assert.match(html, /PERMISOS VIRTUALES · PRUEBA ACADÉMICA/);
+  assert.match(html, /El joystick, las DEMO y los movimientos físicos permanecen bloqueados/);
+  assert.match(html, /Utiliza únicamente la clave experimental K-X/);
+  assert.doesNotMatch(html, /Habilitar control real/);
+  assert.match(view, /Administrar permisos virtuales/);
+  assert.match(view, /virtualOnly\s*=\s*CONFIG\.guestAdmissionEnabled\s*&&\s*CONFIG\.adminApprovalEnabled/);
+});
+
 test('K-P: una falla de autorizacion no debe reactivar movimiento de joystick ni DEMO', () => {
   const src = read('assets/js/services/GuestAdmissionService.js');
   const admin = read('assets/js/services/AdminApprovalService.js');
