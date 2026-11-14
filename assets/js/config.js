@@ -4,10 +4,11 @@ const vehicleId = 1;
 export const CONFIG = Object.freeze({
   apiUrl,
   vehicleId,
-  // K-H: OFF until the HTTPS public admission API is deployed and audited.
-  guestAdmissionEnabled: false,
-  // K-J: admin inbox is not usable until secure remote HTTPS endpoints exist.
-  adminApprovalEnabled: false,
+  // K-X: ONLY experimental branch / virtual admission; NEVER physical movement.
+  // Do not merge into main or deploy while physical legacy control is required.
+  guestAdmissionEnabled: true,
+  // The app's canControl() hard-locks ALL legacy actuation whenever this is true.
+  adminApprovalEnabled: true,
   wsUrl: `wss://${new URL(apiUrl).host}/ws/vehiculos/${vehicleId}`,
   requestTimeoutMs: 12000,
   healthTimeoutMs: 6000,
