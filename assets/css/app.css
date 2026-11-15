@@ -1210,3 +1210,33 @@ body[data-view="monitoreo"] .deck-notice { display: none; }
     font-size: .7rem;
   }
 }
+
+/* Tarjetas compactas en horizontal: el listado puede contener 2 tickets
+   (p.ej. un administrador que abrio la pagina inicialmente como visitante).
+   Nunca ocultar ni superponer los botones Autorizar/Rechazar. */
+@media (orientation: landscape) and (min-width: 46rem) and (max-height: 32rem) {
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas: "code actions" "expiry actions";
+    column-gap: .45rem;
+    align-items: center;
+    padding: .24rem .34rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-id { grid-area: code; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-expires {
+    grid-area: expiry;
+    margin: .05rem 0;
+    font-size: .68rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+    gap: .22rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-actions .btn {
+    min-height: 44px;
+    padding: .2rem .35rem;
+    font-size: .71rem;
+  }
+}
