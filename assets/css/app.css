@@ -1128,3 +1128,115 @@ body[data-view="monitoreo"] .deck-notice { display: none; }
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
   :is(.direction-buttons, .extra-buttons) .btn:active:not(:disabled) { translate: none; }
 }
+
+/* K-V: bandeja administrativa sin mini-scroll con una solicitud.
+   NO se oculta el overflow: multiples solicitudes, zoom y accesibilidad
+   mantienen desplazamiento interno si realmente no caben. */
+.public-control:has(#admin-requests:not([hidden])) {
+  max-width: min(34rem, calc(100dvw - var(--safe-left) - var(--safe-right) - var(--gutter) - var(--gutter)));
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - var(--gutter) - var(--gutter));
+}
+.public-control:has(#admin-requests:not([hidden])) .inspector-body {
+  padding: .4rem .65rem .55rem;
+}
+.public-control:has(#admin-requests:not([hidden])) #public-control-status {
+  display: none; /* el mismo resumen se conserva visible en #admin-requests-status */
+}
+.public-control:has(#admin-requests:not([hidden])) .admin-requests {
+  gap: .32rem;
+  margin-top: .35rem;
+  padding-top: .35rem;
+}
+.public-control:has(#admin-requests:not([hidden])) .admin-requests > p {
+  margin: 0;
+}
+.public-control:has(#admin-requests:not([hidden])) .admin-request-item {
+  padding: .35rem .45rem;
+}
+.public-control:has(#admin-requests:not([hidden])) .admin-request-expires {
+  margin: .15rem 0;
+}
+.public-control:has(#admin-requests:not([hidden])) .admin-requests-actions .btn {
+  flex: 1 1 9rem;
+  min-width: 0;
+}
+@media (orientation: landscape) and (max-height: 32rem) {
+  .public-control:has(#admin-requests:not([hidden])) {
+    max-width: calc(100dvw - var(--safe-left) - var(--safe-right) - var(--gutter) - var(--gutter));
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "title label"
+      "status select"
+      "guide actions"
+      "tickets actions"
+      "tickets note";
+    gap: .22rem .55rem;
+    align-items: start;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests h3 { grid-area: title; }
+  .public-control:has(#admin-requests:not([hidden])) #admin-requests-status { grid-area: status; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests > p.muted:not(.admin-requests-note) { grid-area: guide; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-list { grid-area: tickets; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests label { grid-area: label; }
+  .public-control:has(#admin-requests:not([hidden])) #admin-approval-mode { grid-area: select; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-actions { grid-area: actions; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-note { grid-area: note; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-actions .btn {
+    flex-basis: 7rem;
+  }
+}
+
+/* 844x390 y tablets horizontales bajas: usar el ancho disponible.
+   La bandeja queda en tres columnas para evitar scroll de 60 px. */
+@media (orientation: landscape) and (min-width: 46rem) and (max-height: 32rem) {
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 1fr);
+    grid-template-areas:
+      "title label actions"
+      "status select actions"
+      "tickets tickets actions"
+      "guide guide note";
+    gap: .18rem .6rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-actions {
+    align-content: start;
+    gap: .22rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-actions .btn {
+    flex: 1 1 7rem;
+    padding: .24rem .3rem;
+    font-size: .7rem;
+  }
+}
+
+/* Tarjetas compactas en horizontal: el listado puede contener 2 tickets
+   (p.ej. un administrador que abrio la pagina inicialmente como visitante).
+   Nunca ocultar ni superponer los botones Autorizar/Rechazar. */
+@media (orientation: landscape) and (min-width: 46rem) and (max-height: 32rem) {
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content;
+    grid-template-areas: "code actions" "expiry actions";
+    column-gap: .45rem;
+    align-items: center;
+    padding: .24rem .34rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-id { grid-area: code; }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-expires {
+    grid-area: expiry;
+    margin: .05rem 0;
+    font-size: .68rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-actions {
+    grid-area: actions;
+    flex-wrap: nowrap;
+    gap: .22rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-request-actions .btn {
+    min-height: 44px;
+    padding: .2rem .35rem;
+    font-size: .71rem;
+  }
+}

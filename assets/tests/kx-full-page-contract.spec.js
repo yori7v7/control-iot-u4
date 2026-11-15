@@ -75,6 +75,74 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
   await expect(admin.page.locator('#admin-requests')).toBeVisible();
   const authorize = admin.page.getByRole('button', { name: `Autorizar solicitud ${code}` });
   await expect(authorize).toBeVisible({ timeout: 20_000 });
+  // Bandeja real con una solicitud pendiente: ningun scroll inutil ni botones recortados.
+  // Se conserva overflow:auto para varias solicitudes, zoom y accesibilidad.
+  for (const [width, height] of [
+    [1365, 680], [1920, 1080], [768, 1024],
+    [390, 844], [320, 568], [844, 390], [568, 320],
+  ]) {
+    await admin.page.setViewportSize({ width, height });
+    const ui = await admin.page.evaluate(() => {
+      const panel = document.querySelector('#public-control');
+      const viewport = document.documentElement;
+      const body = panel.querySelector('.inspector-body');
+      const rect = panel.getBoundingClientRect();
+      const actions = ['#admin-supervision-start', '#admin-revoke-guest',
+        '#admin-approval-mode', '.admin-request-actions button'];
+      return {
+        panelTop: rect.top,
+        panelBottom: rect.bottom,
+        viewportHeight: viewport.clientHeight,
+        bodyClient: body.clientHeight,
+        bodyScroll: body.scrollHeight,
+        blocks: Array.from(body.children).filter(el => getComputedStyle(el).display !== 'none')
+          .map(el => ({
+            id: el.id || el.tagName.toLowerCase(),
+            top: Math.round(el.getBoundingClientRect().top),
+            bottom: Math.round(el.getBoundingClientRect().bottom),
+            height: Math.round(el.getBoundingClientRect().height),
+          })),
+        adminBlocks: Array.from(panel.querySelector('#admin-requests').children)
+          .filter(el => getComputedStyle(el).display !== 'none')
+          .map(el => ({
+            id: el.id || el.tagName.toLowerCase(),
+            top: Math.round(el.getBoundingClientRect().top),
+            bottom: Math.round(el.getBoundingClientRect().bottom),
+            height: Math.round(el.getBoundingClientRect().height),
+          })),
+        clipped: actions.some(selector => {
+          const element = panel.querySelector(selector);
+          if (!element || element.hidden) return false;
+          const box = element.getBoundingClientRect();
+          return box.top < rect.top - 1 || box.bottom > rect.bottom + 1;
+        }),
+      };
+    });
+    expect(ui.panelTop, 'panel arriba ' + width + 'x' + height).toBeGreaterThanOrEqual(-1);
+    expect(ui.panelBottom, 'panel abajo ' + width + 'x' + height).toBeLessThanOrEqual(height + 1);
+    // Solo exigimos "sin scroll" cuando el contenido cabe conservando
+    // textos, áreas táctiles de 44 px y accesibilidad. 320x568 y 568x320
+    // necesitan desplazamiento interno utilizable, nunca recorte oculto.
+    const isCompact = (width <= 360 && height <= 600) || (height <= 360 && width <= 640);
+    if (!isCompact) {
+      expect(ui.bodyScroll, 'scroll admin ' + width + 'x' + height + ': ' + JSON.stringify(ui))
+        .toBeLessThanOrEqual(ui.bodyClient + 2);
+      expect(ui.clipped, 'botones fuera de panel ' + width + 'x' + height).toBe(false);
+    } else {
+      expect(ui.bodyScroll, 'contenido admin compacto ' + width + 'x' + height)
+        .toBeGreaterThan(ui.bodyClient);
+      const revoke = admin.page.locator('#admin-revoke-guest');
+      await revoke.scrollIntoViewIfNeeded();
+      await expect(revoke).toBeVisible();
+      const rect = await revoke.boundingBox();
+      const panelRect = await admin.page.locator('#public-control').boundingBox();
+      expect(rect.y, 'control alcanzable en ' + width + 'x' + height)
+        .toBeGreaterThanOrEqual(panelRect.y - 1);
+      expect(rect.y + rect.height, 'control no recortado en ' + width + 'x' + height)
+        .toBeLessThanOrEqual(panelRect.y + panelRect.height + 1);
+    }
+  }
+  await admin.page.setViewportSize({ width: 1365, height: 680 });
   await admin.page.locator('#admin-approval-mode').selectOption('timed');
   await admin.page.locator('#admin-supervision-start').click();
   await expect(authorize).toBeEnabled({ timeout: 10_000 });
