@@ -94,6 +94,41 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
   ])).toEqual([0, 0, '']);
 });
 
+test('K-X: escritorio y móvil sin miniscroll ni mandos ocultos tras aviso virtual', async ({ context }) => {
+  const guest = await context.newPage();
+  await guest.setViewportSize({ width: 1365, height: 680 });
+  await guest.goto(PAGES);
+  await expect(guest.locator('#control-mode')).toHaveText('En espera', { timeout: 25_000 });
+  await noMotorUI(guest);
+  await expect(guest.locator('.virtual-mode-chip')).toBeVisible();
+  for (const [width, height] of [
+    [1365, 680], [1280, 720], [1366, 768], [1920, 1080],
+    [768, 1024], [390, 844], [320, 568], [844, 390],
+  ]) {
+    await guest.setViewportSize({ width, height });
+    const result = await guest.evaluate(() => {
+      const root = document.documentElement;
+      const body = document.body;
+      const stop = document.getElementById('stop').getBoundingClientRect();
+      const extras = document.getElementById('extra-control')?.getBoundingClientRect()
+        ?? document.querySelector('.extra-control').getBoundingClientRect();
+      return {
+        viewport: [root.clientWidth, root.clientHeight],
+        scroll: [root.scrollWidth, root.scrollHeight, body.scrollWidth, body.scrollHeight],
+        extrasBottom: extras.bottom,
+        stopBottom: stop.bottom,
+      };
+    });
+    expect(result.scroll[0], `scroll horizontal ${width}x${height}`).toBe(result.viewport[0]);
+    expect(result.scroll[1], `scroll vertical ${width}x${height}`).toBe(result.viewport[1]);
+    expect(result.scroll[2], `body horizontal ${width}x${height}`).toBeLessThanOrEqual(result.viewport[0]);
+    expect(result.scroll[3], `body vertical ${width}x${height}`).toBeLessThanOrEqual(result.viewport[1]);
+    expect(result.extrasBottom, `auxiliares visibles ${width}x${height}`).toBeLessThanOrEqual(height + 1);
+    expect(result.stopBottom, `detener visible ${width}x${height}`).toBeLessThanOrEqual(height + 1);
+    await noMotorUI(guest);
+  }
+});
+
 test('K-X: visitante no puede consultar bandeja sin clave y CORS ajeno cerrado', async ({ request }) => {
   // Este request usa TLS del runner, no ignoreHTTPSErrors ni api mocking.
   const unauthorized = await request.get(API + ADMIN, {
