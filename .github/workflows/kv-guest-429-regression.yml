@@ -1,0 +1,34 @@
+name: Regresion K-V invitado HTTP 429 (sin AWS)
+on:
+  push:
+    branches:
+      - fix/kv-guest-429-backoff-20261115
+  pull_request:
+    paths:
+      - assets/js/services/GuestAdmissionService.js
+      - assets/js/ui/DashboardView.js
+      - assets/tests/guestAdmission.test.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-and-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Pruebas Node (sin llamar a AWS)
+        run: npm test
+      - name: Instalar Chromium
+        run: npx playwright install --with-deps chromium
+      - name: K-V interfaz y duraciones simuladas
+        run: npx playwright test assets/tests/guest-admin-km.spec.js --workers=2
