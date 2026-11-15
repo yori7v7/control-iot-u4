@@ -83,6 +83,67 @@ test('K-J: turno limitado de 120 segundos', async () => {
   service.stop();
 });
 
+test('K-V: duraciones ampliadas solo si el backend anuncia capacidades verificadas', async () => {
+  const calls = [];
+  const extended = {
+    ...snapshot(),
+    duraciones_segundos: [120, 300, 600, 1200],
+    modo_supervisado: true,
+  };
+  const { service } = setup({
+    pending: async () => extended,
+    approve: async (_key, id, mode, seconds) => {
+      calls.push({ id, mode, seconds });
+      return ack({ aprobada: true });
+    },
+  });
+  service.start('clave-local');
+  await flush();
+  assert.equal(service.state.phase, 'ready');
+  assert.deepEqual(service.state.durations, [120, 300, 600, 1200]);
+  assert.equal(service.state.supervisedMode, true);
+  assert.equal(service.state.canDrive, false);
+  assert.equal(await service.beginSupervision(), true);
+  assert.equal(await service.approve(ID, 'timed', 1200), true);
+  assert.equal(await service.approve(ID, 'supervised', null), true);
+  assert.equal(await service.approve(ID, 'timed', 150), false);
+  assert.equal(await service.approve(ID, 'supervised', 120), false);
+  assert.deepEqual(calls, [
+    { id: ID, mode: 'timed', seconds: 1200 },
+    { id: ID, mode: 'supervised', seconds: null },
+  ]);
+  service.stop();
+});
+
+test('K-V: backend sin capacidades conserva 120 s y rechaza modo indefinido', async () => {
+  const { service } = setup();
+  service.start('clave-local');
+  await flush();
+  assert.deepEqual(service.state.durations, [120]);
+  assert.equal(service.state.supervisedMode, false);
+  await service.beginSupervision();
+  assert.equal(await service.approve(ID, 'timed', 300), false);
+  assert.equal(await service.approve(ID, 'supervised', null), false);
+  service.stop();
+});
+
+test('K-V: capacidades parciales o alteradas provocan bloqueo administrativo', async () => {
+  for (const bad of [
+    { ...snapshot(), duraciones_segundos: [120, 300, 600, 1200] },
+    { ...snapshot(), duraciones_segundos: [120, 300, 600, 1200], modo_supervisado: false },
+    { ...snapshot(), duraciones_segundos: [120, 300, 300, 1200], modo_supervisado: true },
+    { ...snapshot(), modo_supervisado: true },
+  ]) {
+    const { service } = setup({ pending: async () => bad });
+    service.start('clave-local');
+    await flush();
+    assert.equal(service.state.phase, 'unavailable');
+    assert.equal(service.state.canApprove, false);
+    assert.equal(service.state.canDrive, false);
+    service.stop();
+  }
+});
+
 test('K-J: rechazo de solicitud concreta', async () => {
   let rejected;
   const { service } = setup({ reject: async (_key, id) => {
@@ -167,9 +228,13 @@ test('K-J: API key viaja en header, nunca en URL ni en almacenamiento', async ()
   assert.equal(requests[0].url, 'https://api.example.com/admin/vehiculos/1/control-publico/solicitudes');
   assert.equal(requests[1].options.method, 'POST');
   assert.deepEqual(JSON.parse(requests[1].options.body), {modo: 'timed', segundos: 120});
-  assert.throws(() => client.approve('clave-no-compartir', ID, 'supervised', null), TypeError);
+  await client.approve('clave-no-compartir', ID, 'supervised', null);
+  assert.deepEqual(JSON.parse(requests[2].options.body), {modo: 'supervised'});
+  await client.approve('clave-no-compartir', ID, 'timed', 1200);
+  assert.deepEqual(JSON.parse(requests[3].options.body), {modo: 'timed', segundos: 1200});
+  assert.throws(() => client.approve('clave-no-compartir', ID, 'supervised', 120), TypeError);
   assert.throws(() => client.approve('clave-no-compartir', ID, 'timed', 121), TypeError);
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 4);
   assert.equal(requests[0].options.headers['X-API-Key'], 'clave-no-compartir');
   assert.ok(requests.every(row => !row.url.includes('clave-no-compartir') &&
     row.options.credentials === 'omit' && row.options.cache === 'no-store'));
