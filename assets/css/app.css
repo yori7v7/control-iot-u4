@@ -1187,3 +1187,26 @@ body[data-view="monitoreo"] .deck-notice { display: none; }
     flex-basis: 7rem;
   }
 }
+
+/* 844x390 y tablets horizontales bajas: usar el ancho disponible.
+   La bandeja queda en tres columnas para evitar scroll de 60 px. */
+@media (orientation: landscape) and (min-width: 46rem) and (max-height: 32rem) {
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, 1fr);
+    grid-template-areas:
+      "title label actions"
+      "status select actions"
+      "tickets tickets actions"
+      "guide guide note";
+    gap: .18rem .6rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-actions {
+    align-content: start;
+    gap: .22rem;
+  }
+  .public-control:has(#admin-requests:not([hidden])) .admin-requests-actions .btn {
+    flex: 1 1 7rem;
+    padding: .24rem .3rem;
+    font-size: .7rem;
+  }
+}
