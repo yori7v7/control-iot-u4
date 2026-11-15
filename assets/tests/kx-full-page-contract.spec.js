@@ -58,6 +58,13 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
   await guest.page.keyboard.press('Escape');
 
   const admin = await actualPage(context);
+  // Solo conservamos destinos (rutas), nunca el valor de la clave administrativa.
+  const keyDestinations = [];
+  admin.page.on('request', req => {
+    if (Object.hasOwn(req.headers(), 'x-api-key')) {
+      keyDestinations.push({ origin: new URL(req.url()).origin, path: new URL(req.url()).pathname });
+    }
+  });
   await admin.page.locator('#open-session').click();
   const dialog = admin.page.getByRole('dialog');
   await dialog.getByLabel('Clave API').fill(KEY);
@@ -80,6 +87,10 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
   await admin.page.locator('#admin-revoke-guest').click();
   await expect(guest.page.locator('#control-mode')).toHaveText('Turno revocado', { timeout: 15_000 });
   await noMotorUI(guest.page);
+
+  // La credencial de K-X solo puede salir hacia su API administrativa virtual.
+  expect(keyDestinations.length).toBeGreaterThan(0);
+  expect(keyDestinations.every(({ origin, path }) => origin === API && path.startsWith(ADMIN))).toBe(true);
 
   // Demostrar que nunca se usa la ruta histórica de movimientos ni DEMO.
   const allPosts = [...guest.posts, ...admin.posts];

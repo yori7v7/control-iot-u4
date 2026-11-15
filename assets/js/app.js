@@ -178,7 +178,9 @@ async function start() {
     monitoringView.setVehicle(vehicle, loading);
     view.setCatalog(catalog, requestDirection);
     view.setControl({
-      armed: publicSimulation ? publicControl.state.adminPermission !== 'unverified' : !simulation && api.hasApiKey,
+      armed: publicSimulation ? publicControl.state.adminPermission !== 'unverified'
+         : adminApprovals ? adminApprovals.state.phase !== 'inactive'
+           : !simulation && api.hasApiKey,
       canCommand, canStop: canStop(),
       canClose: canCloseSession(), busy: protectedRequestPending() || commands.mayBeMoving,
       catalogReady, catalogStatus,
@@ -304,11 +306,15 @@ async function start() {
     if (hasGuest() || protectedRequestPending() || commands.mayBeMoving || !view.element('risk-ack').checked) return;
     const input = view.element('api-key');
     const key = input.value;
-    const accepted = publicSimulation ? isApiKeyInput(key) && publicControl.setAdminKey(key.trim()) : api.setApiKey(key);
+    // K-V: la clave de aprobación virtual nunca entra al cliente API legado.
+    const accepted = publicSimulation
+      ? isApiKeyInput(key) && publicControl.setAdminKey(key.trim())
+      : adminApprovals
+        ? isApiKeyInput(key) && adminApprovals.start(key.trim())
+        : api.setApiKey(key);
     input.value = '';
-    if (accepted && !publicSimulation) {
+    if (accepted && !publicSimulation && !adminApprovals) {
       publicControl?.setAdminKey(key.trim());
-      adminApprovals?.start(key.trim());
     }
     render();
     if (accepted) {
