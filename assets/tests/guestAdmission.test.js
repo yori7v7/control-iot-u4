@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GuestAdmissionService, GuestAdmissionClient } from '../js/services/GuestAdmissionService.js';
+import { GuestAdmissionService, GuestAdmissionClient, AdmissionRateLimitError } from '../js/services/GuestAdmissionService.js';
 
 const secret = 'x'.repeat(43);
 const reply = { browser_secret: secret, display_code: 'A1B2C3D4', estado: 'esperando_autorizacion',
