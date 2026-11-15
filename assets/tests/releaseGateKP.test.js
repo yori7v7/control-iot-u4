@@ -40,8 +40,12 @@ test('K-P: no hay URL de laboratorio ni simuladores en config experimental', () 
 test('K-P: portal virtual visible sin confundir permisos con control fisico', () => {
   const html = read('index.html');
   const view = read('assets/js/ui/DashboardView.js');
-  assert.match(html, /PERMISOS VIRTUALES · PRUEBA ACADÉMICA/);
-  assert.match(html, /El joystick, las DEMO y los movimientos físicos permanecen bloqueados/);
+  assert.match(html, /class="virtual-mode-chip"/);
+  assert.match(html, /VIRTUAL<span class="virtual-mode-long"> · SIN MOTORES/);
+  assert.doesNotMatch(html, /virtual-permissions-banner/);
+  const css = read('assets/css/app.css');
+  assert.match(css, /\.virtual-mode-chip/);
+  assert.match(css, /mini-scroll/);
   assert.match(html, /Utiliza únicamente la clave experimental K-X/);
   assert.doesNotMatch(html, /Habilitar control real/);
   assert.match(view, /Administrar permisos virtuales/);
