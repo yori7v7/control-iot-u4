@@ -95,6 +95,7 @@ const GUEST_ADMISSION_LABELS = Object.freeze({
   waiting: 'En espera',
   approved_virtual: 'Permiso virtual',
   revoked: 'Turno revocado',
+  rate_limited: 'Espera temporal',
   unavailable: 'Sin acceso',
 });
 const GUEST_ADMISSION_MESSAGES = Object.freeze({
@@ -102,6 +103,7 @@ const GUEST_ADMISSION_MESSAGES = Object.freeze({
   waiting: 'Esperando autorización del administrador.',
   approved_virtual: 'Autorización virtual concedida. Control físico deshabilitado.',
   revoked: 'El turno fue revocado o caducó.',
+  rate_limited: 'Límite temporal de solicitudes. Se volverá a intentar automáticamente después de una espera segura. El control permanece bloqueado.',
   unavailable: 'No se pudo comprobar el permiso. El control permanece bloqueado.',
 });
 
