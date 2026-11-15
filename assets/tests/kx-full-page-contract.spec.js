@@ -62,7 +62,7 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
   const keyDestinations = [];
   admin.page.on('request', req => {
     if (Object.hasOwn(req.headers(), 'x-api-key')) {
-      keyDestinations.push(new URL(req.url()).pathname);
+      keyDestinations.push({ origin: new URL(req.url()).origin, path: new URL(req.url()).pathname });
     }
   });
   await admin.page.locator('#open-session').click();
@@ -90,7 +90,7 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
 
   // La credencial de K-X solo puede salir hacia su API administrativa virtual.
   expect(keyDestinations.length).toBeGreaterThan(0);
-  expect(keyDestinations.every(path => path.startsWith(ADMIN))).toBe(true);
+  expect(keyDestinations.every(({ origin, path }) => origin === API && path.startsWith(ADMIN))).toBe(true);
 
   // Demostrar que nunca se usa la ruta histórica de movimientos ni DEMO.
   const allPosts = [...guest.posts, ...admin.posts];
