@@ -95,6 +95,21 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
         viewportHeight: viewport.clientHeight,
         bodyClient: body.clientHeight,
         bodyScroll: body.scrollHeight,
+        blocks: Array.from(body.children).filter(el => getComputedStyle(el).display !== 'none')
+          .map(el => ({
+            id: el.id || el.tagName.toLowerCase(),
+            top: Math.round(el.getBoundingClientRect().top),
+            bottom: Math.round(el.getBoundingClientRect().bottom),
+            height: Math.round(el.getBoundingClientRect().height),
+          })),
+        adminBlocks: Array.from(panel.querySelector('#admin-requests').children)
+          .filter(el => getComputedStyle(el).display !== 'none')
+          .map(el => ({
+            id: el.id || el.tagName.toLowerCase(),
+            top: Math.round(el.getBoundingClientRect().top),
+            bottom: Math.round(el.getBoundingClientRect().bottom),
+            height: Math.round(el.getBoundingClientRect().height),
+          })),
         clipped: actions.some(selector => {
           const element = panel.querySelector(selector);
           if (!element || element.hidden) return false;
