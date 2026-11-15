@@ -339,7 +339,37 @@ export class DashboardView {
     this.element('admin-supervision-start').disabled = !state.canSupervise;
     this.element('admin-supervision-stop').disabled = !state.canEndSupervision;
     this.element('admin-revoke-guest').disabled = !state.canRevoke;
-    this.element('admin-approval-mode').disabled = busy || phase !== 'ready';
+    // Las opciones ampliadas aparecen SOLO después de confirmarlas por GET
+    // administrativo del backend. Sin capacidades nuevas: 2 min legado.
+    const selector = this.element('admin-approval-mode');
+    const labels = new Map([
+      [120, '2 minutos'], [300, '5 minutos'],
+      [600, '10 minutos'], [1200, '20 minutos'],
+    ]);
+    const choices = (state.durations ?? [120]).map(seconds => ({
+      value: `timed:${seconds}`,
+      text: `${labels.get(seconds)} · autorización virtual`,
+    }));
+    if (state.supervisedMode === true) {
+      choices.push({
+        value: 'supervised',
+        text: 'Indefinido · únicamente con supervisión activa',
+      });
+    }
+    const changed = selector.options.length !== choices.length ||
+      choices.some((item, i) => selector.options[i]?.value !== item.value);
+    if (changed) {
+      const selected = selector.value;
+      selector.replaceChildren(...choices.map(({ value, text }) => {
+        const option = this.#document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        return option;
+      }));
+      selector.value = choices.some(item => item.value === selected)
+        ? selected : 'timed:120';
+    }
+    selector.disabled = busy || phase !== 'ready';
 
     const current = new Set(pending.map(item => item.id));
     for (const [id, item] of this.#adminRequestItems) {
@@ -364,9 +394,11 @@ export class DashboardView {
         approve.textContent = 'Autorizar';
         approve.setAttribute('aria-label', `Autorizar solicitud ${request.code}`);
         approve.addEventListener('click', () => {
-          const mode = this.element('admin-approval-mode').value;
-          void this.#adminApprovalActions?.approve?.(
-            request.id, mode, mode === 'timed' ? 120 : null);
+          const selection = this.element('admin-approval-mode').value;
+          const mode = selection === 'supervised' ? 'supervised' : 'timed';
+          const seconds = mode === 'timed'
+            ? Number(selection.slice('timed:'.length)) : null;
+          void this.#adminApprovalActions?.approve?.(request.id, mode, seconds);
         });
         const reject = this.#document.createElement('button');
         reject.className = 'btn btn-outline-panel';

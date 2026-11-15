@@ -143,7 +143,7 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
     }
   }
   await admin.page.setViewportSize({ width: 1365, height: 680 });
-  await admin.page.locator('#admin-approval-mode').selectOption('timed');
+  await admin.page.locator('#admin-approval-mode').selectOption('timed:120');
   await admin.page.locator('#admin-supervision-start').click();
   await expect(authorize).toBeEnabled({ timeout: 10_000 });
   await authorize.click();

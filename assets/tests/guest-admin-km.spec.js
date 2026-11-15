@@ -257,7 +257,7 @@ test('K-M: profesor y admin en la MISMA página, autorización virtual y revocac
   await admin.locator('#open-public-control').click();
   await expect(admin.locator('#admin-requests')).toBeVisible();
   await expect(admin.getByRole('button', { name: `Autorizar solicitud ${code}` })).toBeVisible();
-  await admin.locator('#admin-approval-mode').selectOption('timed');
+  await admin.locator('#admin-approval-mode').selectOption('timed:120');
   await admin.locator('#admin-supervision-start').click();
   await expect(admin.getByRole('button', { name: `Autorizar solicitud ${code}` })).toBeEnabled();
   await admin.getByRole('button', { name: `Autorizar solicitud ${code}` }).click();
