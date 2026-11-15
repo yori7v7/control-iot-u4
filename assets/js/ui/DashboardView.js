@@ -1,4 +1,5 @@
 import { formatCommandName, formatCommandReferences } from './commandLabels.js';
+import { CONFIG } from '../config.js';
 
 const DIRECTIONS = {
   AVANZAR_IZQUIERDA: 'diagonal-up-left',
@@ -88,6 +89,23 @@ const ADMIN_STATUS = {
   rejected: 'La API rechazó la clave administrativa.',
   unavailable: 'No se pudieron verificar los permisos administrativos.',
 };
+// K-H no habilita el joystick; solo comunica estados de autorización.
+const GUEST_ADMISSION_LABELS = Object.freeze({
+  requesting: 'Solicitando permiso',
+  waiting: 'En espera',
+  approved_virtual: 'Permiso virtual',
+  revoked: 'Turno revocado',
+  rate_limited: 'Espera temporal',
+  unavailable: 'Sin acceso',
+});
+const GUEST_ADMISSION_MESSAGES = Object.freeze({
+  requesting: 'Solicitando acceso al administrador…',
+  waiting: 'Esperando autorización del administrador.',
+  approved_virtual: 'Autorización virtual concedida. Control físico deshabilitado.',
+  revoked: 'El turno fue revocado o caducó.',
+  rate_limited: 'Límite temporal de solicitudes. Se volverá a intentar automáticamente después de una espera segura. El control permanece bloqueado.',
+  unavailable: 'No se pudo comprobar el permiso. El control permanece bloqueado.',
+});
 
 function setText(node, content) {
   if (node.textContent !== content) node.textContent = content;
@@ -107,6 +125,10 @@ export class DashboardView {
   #demoNotice = null;
   #pressAnimations = new WeakMap();
   #publicControl = null;
+  #guestAdmission = null;
+  #adminApproval = null;
+  #adminApprovalActions = null;
+  #adminRequestItems = new Map();
   #controlMode = { canStop: false, catalogStatus: 'Esperando catálogo' };
   #publicSimulation = false;
   #showingGuestReceipt = false;
@@ -115,6 +137,15 @@ export class DashboardView {
     this.#document = document;
     const supervision = this.element('public-supervision');
     supervision.addEventListener('change', () => this.#setSupervision());
+    this.element('admin-supervision-start').addEventListener('click', () => {
+      void this.#adminApprovalActions?.startSupervision?.();
+    });
+    this.element('admin-supervision-stop').addEventListener('click', () => {
+      void this.#adminApprovalActions?.endSupervision?.();
+    });
+    this.element('admin-revoke-guest').addEventListener('click', () => {
+      void this.#adminApprovalActions?.revoke?.();
+    });
     this.element('public-control').addEventListener('toggle', event => {
       if (event.newState === 'closed') this.resetSupervision();
     });
@@ -220,12 +251,17 @@ export class DashboardView {
   setControl({ armed, canCommand, canStop, canClose, busy, catalogReady, catalogStatus }) {
     this.#controlMode = { canStop, catalogStatus };
     this.#renderControlMode();
-    const sessionLabel = armed ? 'Sesión de control' : 'Habilitar control';
+    const virtualOnly = CONFIG.guestAdmissionEnabled && CONFIG.adminApprovalEnabled;
+    const sessionLabel = virtualOnly ? 'Administrar permisos' :
+      armed ? 'Sesión de control' : 'Habilitar control';
     this.#text('session-label', sessionLabel);
     this.element('open-session').title = sessionLabel;
     const scope = this.#publicSimulation ? 'simulado' : 'real';
-    this.#text('session-title', armed ? `Sesión de control ${scope}` : `Habilitar control ${scope}`);
-    this.#text('save-session', armed ? 'Actualizar clave' : 'Habilitar');
+    this.#text('session-title', virtualOnly ? 'Administrar permisos virtuales' :
+      armed ? `Sesión de control ${scope}` : `Habilitar control ${scope}`);
+    this.#text('save-session', virtualOnly
+      ? armed ? 'Actualizar clave de permisos' : 'Abrir permisos'
+      : armed ? 'Actualizar clave' : 'Habilitar');
     this.element('save-session').disabled = busy;
     this.element('clear-session').hidden = !armed;
     this.element('clear-session').disabled = !canClose;
@@ -274,17 +310,138 @@ export class DashboardView {
     else this.#setSupervision();
   }
 
+  setGuestAdmission(state) {
+    this.#guestAdmission = state?.phase !== 'inactive' ? state : null;
+    this.#renderControlMode();
+    if (!this.#guestAdmission) return;
+    const text = GUEST_ADMISSION_MESSAGES[state.phase] ?? GUEST_ADMISSION_MESSAGES.unavailable;
+    this.#text('public-control-role', 'Visitante');
+    this.#text('public-control-status', state.code ? `${text} Solicitud ${state.code}.` : text);
+    this.element('public-guest-actions').hidden = true;
+    this.element('public-admin-actions').hidden = true;
+  }
+
+  setAdminApproval(state, actions = this.#adminApprovalActions) {
+    this.#adminApproval = state?.phase !== 'inactive' ? state : null;
+    this.#adminApprovalActions = actions;
+    const section = this.element('admin-requests');
+    section.hidden = !this.#adminApproval;
+    this.#renderControlMode();
+    if (!this.#adminApproval) {
+      this.element('admin-requests-list').replaceChildren();
+      this.#adminRequestItems.clear();
+      return;
+    }
+    const { pending, supervising, active, busy, phase, message } = state;
+    const summary = phase === 'ready'
+      ? `${pending.length} solicitud(es) pendiente(s). ${supervising ? 'Supervisión vigente.' : 'Supervisión no iniciada.'}${active ? ' Hay un turno activo.' : ''}`
+      : phase === 'checking' ? 'Verificando permisos administrativos…'
+      : 'No se pudo confirmar el permiso administrativo. Acceso bloqueado.';
+    this.#text('admin-requests-status', message ? `${summary} ${message}` : summary);
+    this.element('admin-supervision-start').disabled = !state.canSupervise;
+    this.element('admin-supervision-stop').disabled = !state.canEndSupervision;
+    this.element('admin-revoke-guest').disabled = !state.canRevoke;
+    // Las opciones ampliadas aparecen SOLO después de confirmarlas por GET
+    // administrativo del backend. Sin capacidades nuevas: 2 min legado.
+    const selector = this.element('admin-approval-mode');
+    const labels = new Map([
+      [120, '2 minutos'], [300, '5 minutos'],
+      [600, '10 minutos'], [1200, '20 minutos'],
+    ]);
+    const choices = (state.durations ?? [120]).map(seconds => ({
+      value: `timed:${seconds}`,
+      text: `${labels.get(seconds)} · autorización virtual`,
+    }));
+    if (state.supervisedMode === true) {
+      choices.push({
+        value: 'supervised',
+        text: 'Indefinido · únicamente con supervisión activa',
+      });
+    }
+    const changed = selector.options.length !== choices.length ||
+      choices.some((item, i) => selector.options[i]?.value !== item.value);
+    if (changed) {
+      const selected = selector.value;
+      selector.replaceChildren(...choices.map(({ value, text }) => {
+        const option = this.#document.createElement('option');
+        option.value = value;
+        option.textContent = text;
+        return option;
+      }));
+      selector.value = choices.some(item => item.value === selected)
+        ? selected : 'timed:120';
+    }
+    selector.disabled = busy || phase !== 'ready';
+
+    const current = new Set(pending.map(item => item.id));
+    for (const [id, item] of this.#adminRequestItems) {
+      if (!current.has(id)) { item.node.remove(); this.#adminRequestItems.delete(id); }
+    }
+    const list = this.element('admin-requests-list');
+    for (const request of pending) {
+      let item = this.#adminRequestItems.get(request.id);
+      if (!item) {
+        const node = this.#document.createElement('li');
+        node.className = 'admin-request-item';
+        const code = this.#document.createElement('strong');
+        code.className = 'admin-request-id';
+        code.textContent = `Solicitud ${request.code}`;
+        const expiry = this.#document.createElement('span');
+        expiry.className = 'admin-request-expires';
+        const actionsRow = this.#document.createElement('div');
+        actionsRow.className = 'admin-request-actions';
+        const approve = this.#document.createElement('button');
+        approve.className = 'btn btn-primary-panel';
+        approve.type = 'button';
+        approve.textContent = 'Autorizar';
+        approve.setAttribute('aria-label', `Autorizar solicitud ${request.code}`);
+        approve.addEventListener('click', () => {
+          const selection = this.element('admin-approval-mode').value;
+          const mode = selection === 'supervised' ? 'supervised' : 'timed';
+          const seconds = mode === 'timed'
+            ? Number(selection.slice('timed:'.length)) : null;
+          void this.#adminApprovalActions?.approve?.(request.id, mode, seconds);
+        });
+        const reject = this.#document.createElement('button');
+        reject.className = 'btn btn-outline-panel';
+        reject.type = 'button';
+        reject.textContent = 'Rechazar';
+        reject.setAttribute('aria-label', `Rechazar solicitud ${request.code}`);
+        reject.addEventListener('click', () => void this.#adminApprovalActions?.reject?.(request.id));
+        actionsRow.append(approve, reject);
+        node.append(code, expiry, actionsRow);
+        list.append(node);
+        item = { node, expiry, approve, reject };
+        this.#adminRequestItems.set(request.id, item);
+      }
+      item.expiry.textContent = `Caduca en ${request.seconds} s · verifica este código con el profesor`;
+      item.approve.disabled = !state.canApprove || request.seconds <= 0;
+      item.reject.disabled = phase !== 'ready' || busy;
+    }
+    this.#text('public-control-role', 'Administrador');
+    this.#text('public-control-status', summary);
+  }
+
   #renderControlMode() {
     const { canStop, catalogStatus } = this.#controlMode;
     const state = this.#publicControl;
     const label = state?.simulation ? (state.role === 'guest' ? 'Tu turno' : PUBLIC_LABELS[state.status] ?? 'Turnos')
       : state && !canStop ? 'Turnos' : canStop ? 'HABILITADO' : 'BLOQUEADO';
     const trigger = this.element('open-public-control');
-    const text = catalogStatus || (state?.adminPermission === 'rejected' ? 'Clave rechazada' : label);
+    const guestLabel = this.#guestAdmission
+      ? GUEST_ADMISSION_LABELS[this.#guestAdmission.phase] ?? 'Sin acceso' : null;
+    const adminLabel = this.#adminApproval
+      ? this.#adminApproval.phase === 'ready'
+        ? this.#adminApproval.pending.length
+          ? `${this.#adminApproval.pending.length} solicitud(es)`
+          : 'Turnos · Administrador'
+        : 'Permisos sin verificar'
+      : null;
+    const text = adminLabel || guestLabel || catalogStatus || (state?.adminPermission === 'rejected' ? 'Clave rechazada' : label);
     this.#text('control-mode', text);
     this.#text('control-mode-announcement', text);
     trigger.setAttribute('aria-label', `Turnos de control · ${text}`);
-    trigger.disabled = !state || typeof this.element('public-control').showPopover !== 'function';
+    trigger.disabled = (!state && !this.#adminApproval) || typeof this.element('public-control').showPopover !== 'function';
     trigger.dataset.armed = String(canStop);
     trigger.toggleAttribute('data-catalog-status', Boolean(catalogStatus));
   }

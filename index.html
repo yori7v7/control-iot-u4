@@ -86,7 +86,7 @@
     <div class="dashboard" id="control-view">
       <section class="drive-panel" aria-labelledby="drive-title">
         <div class="panel-heading">
-          <h2 id="drive-title" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual</h2>
+          <h2 id="drive-title" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual <span class="virtual-mode-chip" role="note" title="Autorización virtual: sin movimientos físicos">VIRTUAL<span class="virtual-mode-long"> · SIN MOTORES</span></span></h2>
           <button class="mode-label" id="open-public-control" type="button" popovertarget="public-control" aria-label="Turnos de control · Esperando catálogo" title="Turnos de control" data-catalog-status disabled>
             <span id="control-mode">Esperando catálogo</span>
           </button>
@@ -113,7 +113,7 @@
           <div class="direction-area">
             <h3>Dirección</h3>
             <div class="direction-buttons" id="direction-buttons" aria-label="Botones de dirección" role="group"></div>
-            <p id="joystick-help">Arrastra o usa las flechas. Suelta para detener. Para interrumpir una orden de botón, pulsa Detener.</p>
+            <p id="joystick-help">Solicita autorización en «En espera». Esta prueba virtual no permite mover el vehículo.</p>
           </div>
           <div class="extra-control">
             <h3>Comandos auxiliares</h3>
@@ -263,6 +263,22 @@
           <button class="btn btn-outline-panel" id="public-revoke" type="button" disabled>Revocar turno</button>
         </div>
       </div>
+      <section class="admin-requests" id="admin-requests" aria-label="Autorizaciones de visitantes" hidden>
+        <h3>Solicitudes de acceso</h3>
+        <p class="muted" id="admin-requests-status" role="status">Sin sesión administrativa.</p>
+        <p class="muted">Verifica el código con el profesor antes de aprobar. Abrir el enlace no concede control.</p>
+        <ol class="admin-requests-list" id="admin-requests-list" aria-label="Solicitudes pendientes"></ol>
+        <label for="admin-approval-mode">Duración del turno</label>
+        <select class="form-select" id="admin-approval-mode">
+          <option value="timed:120">2 minutos · autorización virtual (sin movimiento físico)</option>
+        </select>
+        <div class="admin-requests-actions">
+          <button class="btn btn-outline-panel" id="admin-supervision-start" type="button" disabled>Iniciar supervisión</button>
+          <button class="btn btn-outline-panel" id="admin-supervision-stop" type="button" disabled>Terminar supervisión</button>
+          <button class="btn btn-stop" id="admin-revoke-guest" type="button" disabled>Revocar turno</button>
+        </div>
+        <p class="muted admin-requests-note">Solo permisos virtuales. La parada física no está verificada.</p>
+      </section>
       <a id="public-exit-simulation" href="./" hidden>Salir de simulación</a>
     </div>
   </section>
@@ -314,16 +330,16 @@
     <form id="session-form" autocomplete="off">
       <div class="panel-heading">
         <div class="panel-icon"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#key"/></svg></div>
-        <div><h2 id="session-title">Habilitar control real</h2><p>La clave se conserva en memoria hasta cerrar o recargar la página.</p></div>
+        <div><h2 id="session-title">Administrar permisos virtuales</h2><p>La clave se conserva en memoria hasta cerrar o recargar la página.</p></div>
       </div>
       <div class="session-body panel-body">
-        <p class="notice warning-notice" id="session-risk">Una solicitud puede activar físicamente el vehículo si el microcontrolador está conectado. Para las pruebas de la práctica debe permanecer desconectado.</p>
-        <p class="muted" id="session-key-help">La clave administrativa en el navegador permite controlar este vehículo. Su uso se limita a una sesión personal de prueba y carece de las garantías de una autenticación multiusuario.</p>
+        <p class="notice warning-notice" id="session-risk">En esta modalidad las aprobaciones son únicamente virtuales: no habilitan movimientos ni DEMO. La batería debe permanecer desconectada durante las pruebas.</p>
+        <p class="muted" id="session-key-help">Utiliza únicamente la clave experimental K-X de EC2 para administrar las solicitudes. No utilices la clave original de movimientos. La clave solo vive en la memoria de esta pestaña.</p>
         <label class="form-label" for="api-key">Clave API</label>
         <input class="form-control" id="api-key" type="password" required autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="512" autofocus>
         <div class="form-check mt-3">
           <input class="form-check-input" id="risk-ack" type="checkbox" required>
-          <label class="form-check-label" id="risk-ack-label" for="risk-ack">Entiendo que los comandos pueden activar el vehículo.</label>
+          <label class="form-check-label" id="risk-ack-label" for="risk-ack">Entiendo que esta autorización es virtual y no concede control físico.</label>
         </div>
         <p id="session-error" class="session-error" role="alert" hidden></p>
         <button class="btn btn-outline-panel mt-3" id="clear-session" type="button" hidden>Cerrar sesión de control</button>
@@ -331,7 +347,7 @@
       </div>
       <div class="session-actions">
         <button class="btn btn-outline-panel" id="close-session" type="button">Volver</button>
-        <button class="btn btn-primary-panel" id="save-session" type="submit">Habilitar</button>
+        <button class="btn btn-primary-panel" id="save-session" type="submit">Abrir permisos</button>
       </div>
     </form>
   </dialog>
