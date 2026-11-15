@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GuestAdmissionService, GuestAdmissionClient } from '../js/services/GuestAdmissionService.js';
+import { GuestAdmissionService, GuestAdmissionClient, AdmissionRateLimitError } from '../js/services/GuestAdmissionService.js';
 
 const secret = 'x'.repeat(43);
 const reply = { browser_secret: secret, display_code: 'A1B2C3D4', estado: 'esperando_autorizacion',
@@ -225,4 +225,119 @@ test('K-AH: una respuesta de estado con canDrive verdadero nunca concede permiso
   assert.equal(t.model.state.phase,'unavailable');
   assert.equal(t.model.state.canDrive,false);
   t.model.stop();
+});
+
+function cooldownFixture(client) {
+  let now = 0, callback = null, delay = null;
+  let polling = null;
+  const model = new GuestAdmissionService({
+    client, nowImpl: () => now,
+    setTimeoutImpl: (fn, ms) => { callback = fn; delay = ms; return 901; },
+    clearTimeoutImpl: () => { callback = null; },
+    setIntervalImpl: fn => { polling = fn; return 902; },
+    clearIntervalImpl: () => { polling = null; },
+  });
+  return {
+    model,
+    get delay() { return delay; },
+    get hasRetry() { return callback !== null; },
+    get isPolling() { return polling !== null; },
+    async advance(ms) {
+      now += ms;
+      if (callback) {
+        const fn = callback;
+        callback = null;
+        fn();
+        for (let i = 0; i < 12; i++) await Promise.resolve();
+      }
+    },
+  };
+}
+
+test('HTTP 429: cliente reconoce Retry-After y mantiene el mismo par K-T', async () => {
+  const sent = [];
+  const client = new GuestAdmissionClient({
+    apiUrl: 'https://api.example.com/', vehicleId: 1,
+    fetchImpl: async (_url, opts) => {
+      sent.push({ key: opts.headers['Idempotency-Key'], token: opts.headers['X-Browser-Proposal'] });
+      if (sent.length === 1) {
+        return { ok: false, status: 429, headers: { get: () => '90' } };
+      }
+      return { ok: true, status: 201, json: async () => ({
+        ...reply, browser_secret: opts.headers['X-Browser-Proposal'],
+      }) };
+    },
+  });
+  await assert.rejects(() => client.request(),
+    e => e instanceof AdmissionRateLimitError && e.retryAfterMs === 90_000);
+  const accepted = await client.request();
+  assert.equal(accepted.control_fisico, false);
+  assert.deepEqual(sent[0], sent[1]);
+});
+
+test('HTTP 429: sin Retry-After espera cinco minutos sin repetir cada dos segundos', async () => {
+  let count = 0;
+  const t = cooldownFixture({
+    request: async () => {
+      count++;
+      if (count === 1) throw new AdmissionRateLimitError();
+      return reply;
+    },
+    status: async () => status('esperando_autorizacion'),
+  });
+  await t.model.start();
+  assert.equal(t.model.state.phase, 'rate_limited');
+  assert.equal(t.model.state.canDrive, false);
+  assert.equal(t.delay, 300_000);
+  assert.equal(t.isPolling, false);
+  t.model.pause();
+  assert.equal(t.model.state.phase, 'unavailable');
+  t.model.resume();
+  assert.equal(t.model.state.phase, 'rate_limited');
+  await t.advance(240_000);
+  assert.equal(count, 1);
+  assert.equal(t.delay, 60_000);
+  await t.advance(60_000);
+  assert.equal(count, 2);
+  assert.equal(t.model.state.phase, 'waiting');
+  assert.equal(t.model.state.canDrive, false);
+  t.model.stop();
+});
+
+test('HTTP 429: estado de una sesión se revalida después de la espera y sigue virtual', async () => {
+  let count = 0;
+  const t = cooldownFixture({
+    request: async () => reply,
+    status: async () => {
+      count++;
+      if (count === 1) throw new AdmissionRateLimitError(60_000);
+      return status('autorizado');
+    },
+  });
+  await t.model.start();
+  await t.model.refresh();
+  assert.equal(t.model.state.phase, 'rate_limited');
+  assert.equal(t.delay, 60_000);
+  assert.equal(t.isPolling, false);
+  await t.advance(60_000);
+  assert.equal(count, 2);
+  assert.equal(t.model.state.phase, 'approved_virtual');
+  assert.equal(t.model.state.canDrive, false);
+  assert.equal(t.isPolling, true);
+  t.model.stop();
+});
+
+test('HTTP 429: detener cancela reintentos y no revela control físico', async () => {
+  let count = 0;
+  const t = cooldownFixture({
+    request: async () => { count++; throw new AdmissionRateLimitError(); },
+    status: async () => status('autorizado'),
+  });
+  await t.model.start();
+  assert.equal(t.hasRetry, true);
+  t.model.stop();
+  assert.equal(t.hasRetry, false);
+  await t.advance(600_000);
+  assert.equal(count, 1);
+  assert.deepEqual(t.model.state, { phase: 'inactive', code: '', canDrive: false });
 });

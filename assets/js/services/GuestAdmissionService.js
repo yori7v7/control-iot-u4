@@ -1,13 +1,47 @@
 /** 5.5-K-H: visitor admission for the EXISTING single-page UI.
  * No movement methods; never grants physical control from a status response.
  */
+const FALLBACK_BACKOFF_MS = 300_000;
+const MIN_RETRY_AFTER_MS = 30_000;
+const MAX_RETRY_AFTER_MS = 86_400_000;
+
+export class AdmissionRateLimitError extends Error {
+  constructor(retryAfterMs = null) {
+    super('Límite temporal de solicitudes');
+    this.name = 'AdmissionRateLimitError';
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+function retryAfterMs(header) {
+  if (typeof header !== 'string' || !header.trim()) return null;
+  const raw = header.trim();
+  let ms;
+  if (/^\d+$/.test(raw)) {
+    const seconds = Number(raw);
+    if (!Number.isSafeInteger(seconds)) return null;
+    ms = seconds * 1000;
+  } else {
+    const date = Date.parse(raw);
+    if (!Number.isFinite(date)) return null;
+    ms = date - Date.now();
+  }
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.max(MIN_RETRY_AFTER_MS, Math.min(ms, MAX_RETRY_AFTER_MS));
+}
+
 export class GuestAdmissionService {
   #client;
   #onChange;
   #setInterval;
   #clearInterval;
+  #setTimeout;
+  #clearTimeout;
+  #now;
   #pollMs;
   #timer = null;
+  #retryTimer = null;
+  #retryAt = 0;
   #generation = 0;
   #active = false;
   #suspended = false;
@@ -17,15 +51,23 @@ export class GuestAdmissionService {
   #code = '';
 
   constructor({ client, onChange = () => {}, setIntervalImpl = globalThis.setInterval.bind(globalThis),
-    clearIntervalImpl = globalThis.clearInterval.bind(globalThis), pollMs = 2000 } = {}) {
+    clearIntervalImpl = globalThis.clearInterval.bind(globalThis),
+    setTimeoutImpl = globalThis.setTimeout.bind(globalThis),
+    clearTimeoutImpl = globalThis.clearTimeout.bind(globalThis),
+    nowImpl = Date.now, pollMs = 2000 } = {}) {
     if (!client || typeof client.request !== 'function' || typeof client.status !== 'function' ||
-        typeof onChange !== 'function' || !Number.isSafeInteger(pollMs) || pollMs < 1000) {
+        typeof onChange !== 'function' || !Number.isSafeInteger(pollMs) || pollMs < 1000 ||
+        typeof setTimeoutImpl !== 'function' || typeof clearTimeoutImpl !== 'function' ||
+        typeof nowImpl !== 'function') {
       throw new TypeError('Contrato de admisión inválido.');
     }
     this.#client = client;
     this.#onChange = onChange;
     this.#setInterval = setIntervalImpl;
     this.#clearInterval = clearIntervalImpl;
+    this.#setTimeout = setTimeoutImpl;
+    this.#clearTimeout = clearTimeoutImpl;
+    this.#now = nowImpl;
     this.#pollMs = pollMs;
   }
 
@@ -37,6 +79,37 @@ export class GuestAdmissionService {
     this.#phase = phase;
     this.#code = code;
     this.#onChange(this.state);
+  }
+
+  #clearRetryTimer() {
+    if (this.#retryTimer !== null) this.#clearTimeout(this.#retryTimer);
+    this.#retryTimer = null;
+  }
+
+  #scheduleRetry(generation) {
+    if (!this.#active || this.#suspended || generation !== this.#generation ||
+        this.#retryTimer !== null) return;
+    const delay = Math.max(0, this.#retryAt - this.#now());
+    this.#retryTimer = this.#setTimeout(() => {
+      this.#retryTimer = null;
+      if (!this.#active || this.#suspended || generation !== this.#generation) return;
+      if (this.#now() < this.#retryAt) {
+        this.#scheduleRetry(generation);
+        return;
+      }
+      this.#retryAt = 0;
+      if (this.#browserSecret) void this.refresh();
+      else void this.#requestInitial(generation);
+    }, delay);
+  }
+
+  #rateLimited(error, generation) {
+    this.#stopPolling();
+    this.#clearRetryTimer();
+    const delay = error.retryAfterMs ?? FALLBACK_BACKOFF_MS;
+    this.#retryAt = this.#now() + delay;
+    this.#notify('rate_limited', this.#browserSecret ? this.#code : '');
+    this.#scheduleRetry(generation);
   }
 
   async start() {
@@ -60,12 +133,18 @@ export class GuestAdmissionService {
         throw new TypeError('Respuesta de solicitud inválida.');
       }
       this.#browserSecret = row.browser_secret; // ONLY memory. Never put in URL or storage.
+      this.#retryAt = 0;
+      this.#clearRetryTimer();
       this.#stopPolling();
       this.#notify('waiting', row.display_code);
       this.#timer = this.#setInterval(() => void this.refresh(), this.#pollMs);
-    } catch (_error) {
+    } catch (error) {
       if (!this.#active || this.#suspended || generation !== this.#generation) return;
       this.#browserSecret = '';
+      if (error instanceof AdmissionRateLimitError) {
+        this.#rateLimited(error, generation);
+        return;
+      }
       this.#notify('unavailable', '');
       // Si se pierde la respuesta 201, el cliente repite EL MISMO par K-T
       // en vez de crear tickets nuevos. Nunca solicita movimiento físico.
@@ -90,16 +169,24 @@ export class GuestAdmissionService {
           row.display_code !== this.#code) {
         throw new TypeError('Respuesta de autorización no verificable.');
       }
+      this.#retryAt = 0;
+      this.#clearRetryTimer();
       if (row.estado === 'revocado_o_caducado') {
         this.#browserSecret = '';
         this.#stopPolling();
         this.#notify('revoked');
       } else {
         this.#notify(row.estado === 'autorizado' ? 'approved_virtual' : 'waiting');
+        if (this.#timer === null) {
+          this.#timer = this.#setInterval(() => void this.refresh(), this.#pollMs);
+        }
       }
-    } catch (_error) {
-      if (this.#active && !this.#suspended && generation === this.#generation) this.#notify('unavailable');
-      // Keep polling if a browser session already exists. No movement at any phase.
+    } catch (error) {
+      if (this.#active && !this.#suspended && generation === this.#generation) {
+        if (error instanceof AdmissionRateLimitError) this.#rateLimited(error, generation);
+        else this.#notify('unavailable');
+      }
+      // A session status may be rate-limited too; never poll it every 2 seconds after 429.
     } finally {
       if (generation === this.#generation) this.#busy = false;
     }
@@ -113,6 +200,7 @@ export class GuestAdmissionService {
     this.#suspended = true;
     this.#generation++;
     this.#stopPolling();
+    this.#clearRetryTimer();
     this.#busy = false;
     this.#notify('unavailable');
   }
@@ -121,6 +209,12 @@ export class GuestAdmissionService {
   resume() {
     if (!this.#active || !this.#suspended) return;
     this.#suspended = false;
+    if (this.#retryAt > this.#now()) {
+      this.#notify('rate_limited', this.#browserSecret ? this.#code : '');
+      this.#scheduleRetry(this.#generation);
+      return;
+    }
+    this.#retryAt = 0;
     if (!this.#browserSecret) {
       // El POST inicial pudo quedar en vuelo; nuevos tickets expiran en servidor.
       this.#active = false;
@@ -142,6 +236,8 @@ export class GuestAdmissionService {
     this.#suspended = false;
     this.#generation++;
     this.#stopPolling();
+    this.#clearRetryTimer();
+    this.#retryAt = 0;
     this.#busy = false;
     this.#browserSecret = '';
     this.#client.reset?.();
@@ -179,6 +275,9 @@ export class GuestAdmissionClient {
       method, headers, credentials: 'omit', cache: 'no-store', redirect: 'error',
       referrerPolicy: 'no-referrer', signal: AbortSignal.timeout(5000),
     });
+    if (response.status === 429) {
+      throw new AdmissionRateLimitError(retryAfterMs(response.headers?.get?.('Retry-After')));
+    }
     if (!response.ok) throw new Error(`Servicio de admisión: HTTP ${response.status}`);
     return response.json();
   }
