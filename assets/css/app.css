@@ -244,6 +244,33 @@ body {
   padding: var(--panel-pad) var(--panel-pad) 0;
 }
 .panel-heading h2 { display: flex; min-width: 0; align-items: center; gap: .55rem; margin: 0; font-size: clamp(.94rem, 1.5vw, 1.32rem); font-weight: 740; letter-spacing: -.028em; }
+
+/* K-X: información virtual en la MISMA cabecera del control.
+   No reservar una nueva fila del dashboard: evita el mini-scroll. */
+.virtual-mode-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  border: 1px solid #805361;
+  border-radius: .35rem;
+  padding: .2rem .35rem;
+  background: #39202b;
+  color: #ffd0d5;
+  font: 750 clamp(.56rem, .7vw, .66rem)/1 var(--mono);
+  letter-spacing: .025em;
+  white-space: nowrap;
+}
+@media (max-width: 47rem) {
+  .virtual-mode-long { display: none; }
+  .virtual-mode-chip { padding: .18rem .25rem; }
+}
+@media (orientation: portrait) and (max-width: 47rem) and (max-height: 44rem),
+       (orientation: landscape) and (max-height: 32rem) {
+  /* En layout ultracompacto la cabecera es de media columna.
+     El estado «En espera» y el acceso administrativo siguen visibles. */
+  .virtual-mode-chip { display: none; }
+}
+
 .panel-heading h2 .icon { color: var(--signal); }
 .mode-label {
   display: inline-flex;
