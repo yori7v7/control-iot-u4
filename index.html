@@ -61,11 +61,6 @@
 
   <main class="shell main-shell" id="contenido" tabindex="-1">
     <noscript><p class="notice">Activa JavaScript para utilizar la consola.</p></noscript>
-    <p class="notice virtual-permissions-banner" role="note">
-      <strong>PERMISOS VIRTUALES · PRUEBA ACADÉMICA</strong>
-      El profesor solicita autorización en «En espera» y el administrador la aprueba en «Administrar permisos».
-      El joystick, las DEMO y los movimientos físicos permanecen bloqueados.
-    </p>
     <section class="connectivity" aria-labelledby="connections-title">
       <h2 id="connections-title">Conectividad</h2>
       <ul class="connection-list list-unstyled mb-0">
@@ -91,7 +86,7 @@
     <div class="dashboard" id="control-view">
       <section class="drive-panel" aria-labelledby="drive-title">
         <div class="panel-heading">
-          <h2 id="drive-title" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual</h2>
+          <h2 id="drive-title" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#joystick"/></svg>Control manual <span class="virtual-mode-chip" role="note" title="Autorización virtual: sin movimientos físicos">VIRTUAL<span class="virtual-mode-long"> · SIN MOTORES</span></span></h2>
           <button class="mode-label" id="open-public-control" type="button" popovertarget="public-control" aria-label="Turnos de control · Esperando catálogo" title="Turnos de control" data-catalog-status disabled>
             <span id="control-mode">Esperando catálogo</span>
           </button>
@@ -118,7 +113,7 @@
           <div class="direction-area">
             <h3>Dirección</h3>
             <div class="direction-buttons" id="direction-buttons" aria-label="Botones de dirección" role="group"></div>
-            <p id="joystick-help">Arrastra o usa las flechas. Suelta para detener. Para interrumpir una orden de botón, pulsa Detener.</p>
+            <p id="joystick-help">Solicita autorización en «En espera». Esta prueba virtual no permite mover el vehículo.</p>
           </div>
           <div class="extra-control">
             <h3>Comandos auxiliares</h3>
