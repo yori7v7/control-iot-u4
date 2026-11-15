@@ -4,8 +4,24 @@
  */
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 const CODE = /^[A-F0-9]{8}$/;
-// El backend HTTPS K-V solo admite turnos virtuales temporales (hasta 120 s).
-const MODE = new Set(['timed']);
+// Nunca habilitar una duración que el servidor K-V no haya anunciado.
+const MODE = new Set(['timed', 'supervised']);
+const EXTENDED_DURATIONS = Object.freeze([120, 300, 600, 1200]);
+const LEGACY_DURATIONS = Object.freeze([120]);
+
+function capabilities(data) {
+  const durationPresent = Object.hasOwn(data, 'duraciones_segundos');
+  const supervisedPresent = Object.hasOwn(data, 'modo_supervisado');
+  if (durationPresent !== supervisedPresent) throw new TypeError('Capacidades K-V incompletas.');
+  if (!durationPresent) return { durations: LEGACY_DURATIONS, supervisedMode: false };
+  if (!Array.isArray(data.duraciones_segundos) ||
+      data.duraciones_segundos.length !== EXTENDED_DURATIONS.length ||
+      data.duraciones_segundos.some((seconds, i) => seconds !== EXTENDED_DURATIONS[i]) ||
+      data.modo_supervisado !== true) {
+    throw new TypeError('Capacidades K-V no verificables.');
+  }
+  return { durations: EXTENDED_DURATIONS, supervisedMode: true };
+}
 
 function verifiedList(data) {
   if (!data || !Array.isArray(data.solicitudes) || data.solicitudes.length > 20 ||
@@ -14,6 +30,7 @@ function verifiedList(data) {
   const ids = new Set();
   return {
     active: data.turno_activo,
+    ...capabilities(data),
     pending: data.solicitudes.map(row => {
       if (!row || typeof row.request_id !== 'string' || !UUID.test(row.request_id) ||
           ids.has(row.request_id) || !CODE.test(row.display_code) ||
@@ -72,12 +89,13 @@ export class AdminApprovalClient {
   pending(key, signal) { return this.#call('', key, { signal }); }
   heartbeat(key, signal) { return this.#call('/supervision', key, { method: 'POST', signal }); }
   approve(key, id, mode, seconds, signal) {
-    if (!UUID.test(id) || !MODE.has(mode) ||
-        (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 120)) {
+    const validTime = mode === 'timed' && EXTENDED_DURATIONS.includes(seconds);
+    const validSupervised = mode === 'supervised' && seconds === null;
+    if (!UUID.test(id) || !MODE.has(mode) || (!validTime && !validSupervised)) {
       throw new TypeError('Selección de autorización no válida.');
     }
     const data = { modo: mode };
-    data.segundos = seconds;
+    if (validTime) data.segundos = seconds;
     return this.#call(`/${id}/aprobar`, key, { method: 'POST', data, signal });
   }
   reject(key, id, signal) {
@@ -93,6 +111,7 @@ export class AdminApprovalService {
   #suspended = false;
   #busy = false; #reading = false; #beating = false; #supervising = false;
   #lastBeat = 0; #phase = 'inactive'; #message = ''; #pending = []; #active = false;
+  #durations = LEGACY_DURATIONS; #supervisedMode = false;
 
   constructor({ client, onChange = () => {}, clock = () => Date.now(),
     setIntervalImpl = globalThis.setInterval.bind(globalThis), clearIntervalImpl = globalThis.clearInterval.bind(globalThis) } = {}) {
@@ -108,6 +127,7 @@ export class AdminApprovalService {
     return Object.freeze({
       phase: this.#phase, message: this.#message, pending: Object.freeze([...this.#pending]),
       active: this.#active, supervising: fresh, busy: this.#busy,
+      durations: this.#durations, supervisedMode: this.#supervisedMode,
       canApprove: this.#phase === 'ready' && fresh && !this.#busy,
       canRevoke: this.#phase === 'ready' && !this.#busy && this.#active,
       canSupervise: this.#phase === 'ready' && !this.#busy && !fresh,
@@ -127,6 +147,7 @@ export class AdminApprovalService {
     this.#suspended = false;
     this.#key = ''; this.#abort = null; this.#phase = 'inactive'; this.#message = '';
     this.#pending = []; this.#active = false; this.#supervising = false;
+    this.#durations = LEGACY_DURATIONS; this.#supervisedMode = false;
     this.#busy = this.#reading = this.#beating = false; this.#lastBeat = 0;
     this.#notify();
   }
@@ -142,6 +163,7 @@ export class AdminApprovalService {
     this.#abort?.abort();
     this.#stopIntervals();
     this.#pending = []; this.#active = false; this.#supervising = false;
+    this.#durations = LEGACY_DURATIONS; this.#supervisedMode = false;
     this.#lastBeat = 0; this.#reading = false; this.#beating = false; this.#busy = false;
     this.#phase = 'unavailable';
     this.#message = 'Pestaña oculta o sin conexión. Supervisión suspendida; revocación sin confirmar.';
@@ -184,11 +206,13 @@ export class AdminApprovalService {
       const snapshot = verifiedList(await this.#client.pending(this.#key, this.#abort.signal));
       if (this.#suspended || generation !== this.#generation) return;
       this.#pending = snapshot.pending; this.#active = snapshot.active;
+      this.#durations = snapshot.durations; this.#supervisedMode = snapshot.supervisedMode;
       this.#phase = 'ready'; this.#message = '';
     } catch {
       if (this.#suspended || generation !== this.#generation) return;
       this.#phase = 'unavailable'; this.#message = 'No se pudo verificar la sesión administrativa.';
       this.#pending = []; this.#active = false; this.#supervising = false; this.#lastBeat = 0;
+      this.#durations = LEGACY_DURATIONS; this.#supervisedMode = false;
       if (this.#beatTimer !== null) this.#clearInterval(this.#beatTimer);
       this.#beatTimer = null;
     } finally {
@@ -237,6 +261,7 @@ export class AdminApprovalService {
       if (generation !== this.#generation) return false;
       this.#message = 'Operación no confirmada; vuelve a consultar el estado.';
       this.#phase = 'unavailable'; this.#pending = []; this.#active = false;
+      this.#durations = LEGACY_DURATIONS; this.#supervisedMode = false;
       this.#supervising = false; this.#lastBeat = 0;
       if (this.#beatTimer !== null) this.#clearInterval(this.#beatTimer);
       this.#beatTimer = null;
@@ -251,7 +276,10 @@ export class AdminApprovalService {
 
   approve(id, mode = 'timed', seconds = 120) {
     if (!this.state.canApprove || !this.#pending.some(x => x.id === id)) return Promise.resolve(false);
-    if (!MODE.has(mode) || (!Number.isSafeInteger(seconds) || seconds < 30 || seconds > 120)) return Promise.resolve(false);
+    const valid = mode === 'timed'
+      ? this.#durations.includes(seconds) && Number.isSafeInteger(seconds)
+      : mode === 'supervised' && this.#supervisedMode && seconds === null;
+    if (!MODE.has(mode) || !valid) return Promise.resolve(false);
     return this.#change((key, signal) => this.#client.approve(key, id, mode, seconds, signal),
       'Solicitud aprobada. Control físico aún deshabilitado.', 'aprobada');
   }
