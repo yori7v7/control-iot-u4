@@ -108,7 +108,7 @@ test('K-X: página completa profesor solicita -> admin aprueba -> revoca, backen
     // Solo exigimos "sin scroll" cuando el contenido cabe conservando
     // textos, áreas táctiles de 44 px y accesibilidad. 320x568 y 568x320
     // necesitan desplazamiento interno utilizable, nunca recorte oculto.
-    const isCompact = (width <= 360 && height <= 600);
+    const isCompact = (width <= 360 && height <= 600) || (height <= 360 && width <= 640);
     if (!isCompact) {
       expect(ui.bodyScroll, 'scroll admin ' + width + 'x' + height + ': ' + JSON.stringify(ui))
         .toBeLessThanOrEqual(ui.bodyClient + 2);
