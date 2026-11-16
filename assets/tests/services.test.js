@@ -15,6 +15,44 @@ const movement = {
   fecha_actualizacion: '2026-11-07T18:33:22', conectado: false, origen: 'API',
 };
 
+test('una clave ausente bloquea POST y una clave ficticia configurada se aplica automáticamente sin autenticar las lecturas', async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, ...options });
+    if (url.endsWith('/ejecutar')) {
+      return Response.json({ id_vehiculo: 1, id_demo: 3, estado: 'iniciada' }, { status: 202 });
+    }
+    if (url.endsWith('/cancelar')) {
+      return Response.json({ id_vehiculo: 1, id_demo: 3, estado: 'cancelada' });
+    }
+    if (url.endsWith('/historial')) return Response.json([]);
+    return Response.json(options.method === 'POST' ? movement : null);
+  };
+  const unconfigured = new ApiClient({ operatorApiKey: '', fetchImpl });
+  assert.equal(unconfigured.hasApiKey, false);
+  await assert.rejects(unconfigured.sendCommand(2), { kind: 'auth' });
+  await assert.rejects(unconfigured.startDemo(3), { kind: 'auth' });
+  await assert.rejects(unconfigured.cancelDemo(3), { kind: 'auth' });
+  assert.equal(calls.length, 0);
+  assert.equal(await unconfigured.getVehicleState(), null);
+  assert.deepEqual(await unconfigured.getMovementHistory(), []);
+
+  const configured = new ApiClient({ operatorApiKey: 'operador-ficticio-de-prueba', fetchImpl });
+  assert.equal(configured.hasApiKey, true);
+  assert.equal(await configured.getVehicleState(), null);
+  assert.deepEqual(await configured.getMovementHistory(), []);
+  assert.deepEqual(await configured.sendCommand(2), movement);
+  assert.equal((await configured.startDemo(3)).estado, 'iniciada');
+  assert.equal((await configured.cancelDemo(3)).estado, 'cancelada');
+  const reads = calls.filter(call => call.method === 'GET');
+  const posts = calls.filter(call => call.method === 'POST');
+  assert.equal(reads.length, 4);
+  assert.ok(reads.every(call => call.headers['X-API-Key'] === undefined));
+  assert.equal(posts.length, 3);
+  assert.ok(posts.every(call => call.headers['X-API-Key'] === 'operador-ficticio-de-prueba'));
+  assert.equal(new ApiClient({ operatorApiKey: 'clave\r\ninválida', fetchImpl }).hasApiKey, false);
+});
+
 test('REST envía los contratos exactos y limita la clave a los POST protegidos', async () => {
   const responses = [
     Response.json({ status: 'ok', service: 'API de prueba', environment: 'development' }),
@@ -23,7 +61,7 @@ test('REST envía los contratos exactos y limita la clave a los POST protegidos'
     Response.json({ id_vehiculo: 1, id_demo: 3, estado: 'cancelada' }),
   ];
   const calls = [];
-  const api = new ApiClient({ fetchImpl: async (url, options) => {
+  const api = new ApiClient({ operatorApiKey: '', fetchImpl: async (url, options) => {
     calls.push({ url, ...options });
     return responses.shift();
   } });
@@ -56,11 +94,11 @@ test('REST envía los contratos exactos y limita la clave a los POST protegidos'
   assert.equal(api.setApiKey(''), false);
   assert.equal(api.hasApiKey, false);
   await assert.rejects(api.sendCommand(2), { kind: 'auth' });
-  assert.throws(() => new ApiClient({ simulation: true }), /transporte REST/);
+  assert.throws(() => new ApiClient({ operatorApiKey: 'unit-fixture-only', simulation: true }), /transporte REST/);
 });
 
 test('REST distingue timeout, cancelación, HTTP y formato sin reflejar respuestas sensibles', async () => {
-  const timeoutApi = new ApiClient({ timeoutMs: 10, fetchImpl: (_url, { signal }) => delay(1000, null, { signal }) });
+  const timeoutApi = new ApiClient({ operatorApiKey: 'unit-fixture-only', timeoutMs: 10, fetchImpl: (_url, { signal }) => delay(1000, null, { signal }) });
   await assert.rejects(timeoutApi.getDemos(), { kind: 'timeout' });
   const controller = new AbortController();
   const pending = timeoutApi.getDemoMovements(3, { signal: controller.signal });
@@ -68,11 +106,11 @@ test('REST distingue timeout, cancelación, HTTP y formato sin reflejar respuest
   await assert.rejects(pending, { kind: 'aborted' });
 
   const secret = 'valor-solo-para-prueba';
-  const deniedApi = new ApiClient({ fetchImpl: async () => Response.json({ detail: secret }, { status: 403 }) });
+  const deniedApi = new ApiClient({ operatorApiKey: 'unit-fixture-only', fetchImpl: async () => Response.json({ detail: secret }, { status: 403 }) });
   deniedApi.setApiKey(secret);
   await assert.rejects(deniedApi.sendCommand(2), error =>
     error instanceof ApiError && error.status === 403 && !error.message.includes(secret));
-  const mismatchedApi = new ApiClient({ fetchImpl: async () => Response.json({ ...movement, id_comando: 1 }) });
+  const mismatchedApi = new ApiClient({ operatorApiKey: 'unit-fixture-only', fetchImpl: async () => Response.json({ ...movement, id_comando: 1 }) });
   mismatchedApi.setApiKey(secret);
   await assert.rejects(mismatchedApi.sendCommand(2), { kind: 'format' });
 });
@@ -87,7 +125,7 @@ test('REST distingue conflictos de ejecución y valida la secuencia sin reordena
     Response.json([step, { ...step, id_demo_movimiento: 2, orden: 1 }]),
     Response.json([step, { ...step, orden: 3 }]),
   ];
-  const api = new ApiClient({ fetchImpl: async () => responses.shift() });
+  const api = new ApiClient({ operatorApiKey: 'unit-fixture-only', fetchImpl: async () => responses.shift() });
   api.setApiKey('clave-de-prueba');
   await assert.rejects(api.startDemo(3), { kind: 'demo-conflict', status: 409 });
   await assert.rejects(api.startDemo(3), { kind: 'http', status: 409 });
@@ -98,7 +136,7 @@ test('REST distingue conflictos de ejecución y valida la secuencia sin reordena
 
 test('los sondeos de API y RDS distinguen degradación, falta de verificación y recuperación', async () => {
   const simulation = createSimulation({ requestDelayMs: 0 });
-  const api = new ApiClient({ simulation: true, ...simulation });
+  const api = new ApiClient({ operatorApiKey: 'unit-fixture-only', simulation: true, ...simulation });
   const states = { api: [], database: [] };
   const connection = new ConnectionService({
     api, onApiState: state => states.api.push(state), onDatabaseState: state => states.database.push(state),
@@ -124,7 +162,7 @@ test('RDS admite una respuesta de 7 segundos y sigue teniendo un timeout indepen
   t.mock.timers.enable({ apis: ['setTimeout'] });
   let databaseDelayMs = 7000;
   const states = { api: [], database: [] };
-  const api = new ApiClient({ fetchImpl: (url, { signal }) => {
+  const api = new ApiClient({ operatorApiKey: 'unit-fixture-only', fetchImpl: (url, { signal }) => {
     if (new URL(url).pathname === '/') {
       return Promise.resolve(Response.json({ status: 'ok', service: 'API de prueba', environment: 'development' }));
     }
@@ -217,7 +255,7 @@ test('la simulación explícita ejercita catálogo, movimiento, DEMO completa y 
   assert.equal(isSimulation(''), false);
   assert.equal(isSimulation('?modo=simulacion'), true);
   const simulation = createSimulation({ requestDelayMs: 0, demoStepScale: 0.002 });
-  const api = new ApiClient({ simulation: true, ...simulation });
+  const api = new ApiClient({ operatorApiKey: 'unit-fixture-only', simulation: true, ...simulation });
   const events = [];
   let complete;
   const ended = new Promise(resolve => { complete = resolve; });

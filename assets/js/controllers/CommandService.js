@@ -32,7 +32,8 @@ export class CommandService {
 
   setCatalog(commands) {
     this.#catalog = new Map(commands
-      .filter(command => command.active && (command.key !== STOP || command.code === 0))
+      .filter(command => command.active && command.key !== 'DEMO_ORIGINAL' &&
+        (command.key !== STOP || command.code === 0))
       .map(command => [command.key, command]));
     this.#onChange();
   }

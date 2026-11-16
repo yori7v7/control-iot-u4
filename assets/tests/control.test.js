@@ -25,6 +25,20 @@ function nextTurn() {
   return new Promise(resolve => setImmediate(resolve));
 }
 
+test('DEMO_ORIGINAL permanece bloqueada aunque el catálogo la marque activa', () => {
+  const sent = [];
+  const service = new CommandService({ vehicleId: 1, api: {
+    sendCommand(id) { sent.push(id); },
+  } });
+  service.setCatalog([...CATALOG, {
+    id: 10, name: 'DEMO_ORIGINAL', key: 'DEMO_ORIGINAL', code: 64, active: true,
+  }]);
+  assert.equal(service.getCommand('DEMO_ORIGINAL'), null);
+  assert.equal(service.request('DEMO_ORIGINAL'), false);
+  assert.deepEqual(sent, []);
+  assert.ok(service.getCommand('DETENER'));
+});
+
 function movement(id) {
   const command = CATALOG.find(entry => entry.id === id);
   return {

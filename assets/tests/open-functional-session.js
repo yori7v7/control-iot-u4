@@ -108,7 +108,7 @@ async function askForConfirmation() {
   const input = createInterface({ input: stdin, output: stdout });
   try {
     console.log('Modo protegido. Confirma la desconexión física del microcontrolador y la autorización expresa.');
-    console.log('La clave se introduce únicamente en el formulario del panel.');
+    console.log('La clave de operador se aplica automáticamente; no se muestra ni se solicita en el panel.');
     return await input.question(`Escribe ${CONFIRMATION} y pulsa Enter.\n> `) === CONFIRMATION;
   } finally {
     input.close();

@@ -69,33 +69,9 @@ const EVENT_LABELS = {
 const SVG = 'http://www.w3.org/2000/svg';
 const DEMO_RESULT_MS = 4000;
 const DEMO_IDLE = 'Sin DEMO en ejecución.';
-const PUBLIC_ROLES = { observer: 'Observador', guest: 'Invitado', administrator: 'Administrador' };
-const PUBLIC_STATUS = {
-  unavailable: 'Los turnos de invitado aún no están disponibles.',
-  closed: 'La demostración está desactivada.',
-  available: 'Hay un turno disponible.',
-  occupied: 'El turno está ocupado.',
-  stopping: 'Verificando la parada simulada.',
-  blocked: 'Los turnos están bloqueados.',
-  unknown: 'Sin confirmación de disponibilidad.',
-};
-const PUBLIC_LABELS = {
-  unavailable: 'Turnos', closed: 'Turnos', available: 'Turno libre', occupied: 'Turno ocupado',
-  stopping: 'Deteniendo', blocked: 'Turnos', unknown: 'Turnos',
-};
-const ADMIN_STATUS = {
-  checking: 'Verificando permisos administrativos…',
-  rejected: 'La API rechazó la clave administrativa.',
-  unavailable: 'No se pudieron verificar los permisos administrativos.',
-};
 
 function setText(node, content) {
   if (node.textContent !== content) node.textContent = content;
-}
-
-function formatCountdown(seconds) {
-  const total = Math.max(0, Math.ceil(seconds));
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 export class DashboardView {
@@ -106,18 +82,9 @@ export class DashboardView {
   #steps = null;
   #demoNotice = null;
   #pressAnimations = new WeakMap();
-  #publicControl = null;
-  #controlMode = { canStop: false, catalogStatus: 'Esperando catálogo' };
-  #publicSimulation = false;
-  #showingGuestReceipt = false;
 
   constructor(document) {
     this.#document = document;
-    const supervision = this.element('public-supervision');
-    supervision.addEventListener('change', () => this.#setSupervision());
-    this.element('public-control').addEventListener('toggle', event => {
-      if (event.newState === 'closed') this.resetSupervision();
-    });
   }
 
   element(id) {
@@ -129,17 +96,10 @@ export class DashboardView {
     setText(this.element(id), content);
   }
 
-  setSimulation(simulation, isLocal, { publicSimulation = false } = {}) {
-    this.#publicSimulation = publicSimulation;
+  setSimulation(simulation, isLocal) {
     this.element('simulation-banner').hidden = !simulation;
-    this.element('exit-simulation').hidden = !simulation || publicSimulation;
-    this.element('open-session').hidden = simulation && !publicSimulation;
+    this.element('exit-simulation').hidden = !simulation;
     this.element('simulation-link').hidden = simulation || !isLocal;
-    if (publicSimulation) {
-      this.#text('session-risk', 'Usa únicamente una clave ficticia de la simulación local.');
-      this.#text('session-key-help', 'La clave de prueba se utiliza para verificar permisos administrativos y se mantiene en memoria.');
-      this.#text('risk-ack-label', 'Confirmo que usaré una clave ficticia.');
-    }
   }
 
   setVehicle(vehicle, vehicleId, loading) {
@@ -217,93 +177,17 @@ export class DashboardView {
     this.#pressAnimations.set(graphic, graphic.animate(frames, { duration, easing: 'ease-out' }));
   }
 
-  setControl({ armed, canCommand, canStop, canClose, busy, catalogReady, catalogStatus }) {
-    this.#controlMode = { canStop, catalogStatus };
-    this.#renderControlMode();
-    const sessionLabel = armed ? 'Sesión de control' : 'Habilitar control';
-    this.#text('session-label', sessionLabel);
-    this.element('open-session').title = sessionLabel;
-    const scope = this.#publicSimulation ? 'simulado' : 'real';
-    this.#text('session-title', armed ? `Sesión de control ${scope}` : `Habilitar control ${scope}`);
-    this.#text('save-session', armed ? 'Actualizar clave' : 'Habilitar');
-    this.element('save-session').disabled = busy;
-    this.element('clear-session').hidden = !armed;
-    this.element('clear-session').disabled = !canClose;
-    this.element('clear-session-help').hidden = !armed || canClose;
+  setControl({ armed, canCommand, canStop, catalogReady, catalogStatus }) {
+    const mode = this.element('control-mode');
+    setText(mode, !armed ? 'Falta configurar clave' : catalogStatus || (canStop ? 'HABILITADO' : 'BLOQUEADO'));
+    mode.title = !armed ? 'Falta configurar la clave de operador en assets/js/config.js.' : '';
+    mode.dataset.armed = String(canStop);
+    mode.toggleAttribute('data-catalog-status', !armed || Boolean(catalogStatus));
     this.element('stop').disabled = !canStop;
     this.element('joystick').setAttribute('aria-disabled', String(!CARDINAL_DIRECTIONS.some(canCommand)));
     for (const button of this.#document.querySelectorAll('[data-command]')) {
       button.disabled = !catalogReady || !canCommand(button.dataset.command);
     }
-  }
-
-  setPublicControl(state) {
-    this.#publicControl = state;
-    this.#renderControlMode();
-    if (!state) return;
-
-    const { role, status, simulation, windowSeconds, turnSeconds, canAcquire, canRelease,
-      canDisable, canRevoke, adminPermission, message } = state;
-    const guest = role === 'guest';
-    const administrator = role === 'administrator';
-    const showAdmin = simulation && administrator;
-    const windowOpen = windowSeconds > 0 || canDisable;
-    const statusText = PUBLIC_STATUS[status] ?? 'Consultando disponibilidad…';
-    this.#text('public-control-role', PUBLIC_ROLES[role] ?? PUBLIC_ROLES.observer);
-    this.#text('public-control-status', guest && status === 'occupied' ? 'Tienes el turno.' : statusText);
-    this.element('public-control-simulation').hidden = !simulation;
-    this.element('public-exit-simulation').hidden = !simulation;
-    const messageText = message || ADMIN_STATUS[adminPermission] || '';
-    this.#text('public-control-message', messageText);
-    this.element('public-control-message').hidden = !messageText;
-    this.#setCountdown('window', windowSeconds, simulation);
-    this.#setCountdown('turn', turnSeconds, simulation && (guest || administrator));
-
-    this.element('public-guest-actions').hidden = !simulation || administrator;
-    this.element('public-take').hidden = guest;
-    this.element('public-take').disabled = !canAcquire;
-    this.element('public-release').hidden = !guest;
-    this.element('public-release').disabled = !canRelease;
-    this.element('public-admin-actions').hidden = !showAdmin;
-    this.element('public-close-window').hidden = !windowOpen;
-    this.element('public-close-window').disabled = !canDisable;
-    this.element('public-open-window').hidden = windowOpen;
-    this.element('public-revoke').disabled = !canRevoke;
-    this.element('public-supervision-field').hidden = windowOpen;
-    if (!showAdmin || windowOpen) this.resetSupervision();
-    else this.#setSupervision();
-  }
-
-  #renderControlMode() {
-    const { canStop, catalogStatus } = this.#controlMode;
-    const state = this.#publicControl;
-    const label = state?.simulation ? (state.role === 'guest' ? 'Tu turno' : PUBLIC_LABELS[state.status] ?? 'Turnos')
-      : state && !canStop ? 'Turnos' : canStop ? 'HABILITADO' : 'BLOQUEADO';
-    const trigger = this.element('open-public-control');
-    const text = catalogStatus || (state?.adminPermission === 'rejected' ? 'Clave rechazada' : label);
-    this.#text('control-mode', text);
-    this.#text('control-mode-announcement', text);
-    trigger.setAttribute('aria-label', `Turnos de control · ${text}`);
-    trigger.disabled = !state || typeof this.element('public-control').showPopover !== 'function';
-    trigger.dataset.armed = String(canStop);
-    trigger.toggleAttribute('data-catalog-status', Boolean(catalogStatus));
-  }
-
-  #setCountdown(kind, seconds, allowed) {
-    const visible = allowed && Number.isFinite(seconds) && seconds > 0;
-    this.element(`public-${kind}-time`).hidden = !visible;
-    this.#text(`public-${kind}-countdown`, visible ? formatCountdown(seconds) : '');
-  }
-
-  resetSupervision() {
-    this.element('public-supervision').checked = false;
-    this.#setSupervision();
-  }
-
-  #setSupervision() {
-    const supervision = this.element('public-supervision');
-    supervision.disabled = !this.#publicControl?.canEnable;
-    this.element('public-open-window').disabled = supervision.disabled || !supervision.checked;
   }
 
   setPreview(key) {
@@ -328,21 +212,8 @@ export class DashboardView {
         : 'Sin WSS compatible.');
   }
 
-  setGuestCommand(state, { active = Boolean(state) } = {}) {
-    if (!active && !this.#showingGuestReceipt) return;
-    this.#showingGuestReceipt = active;
-    const receipt = this.element('control-receipt');
-    if (state?.phase) receipt.dataset.commandPhase = state.phase;
-    else delete receipt.dataset.commandPhase;
-    this.element('event-correlation').hidden = true;
-    this.element('receipt-wss').hidden = true;
-    this.#text('last-command', state?.action ? `${formatCommandName(state.action)} · Simulación` : 'Sin comandos solicitados');
-    const detail = [state?.status && `HTTP ${state.status}`, state?.message].filter(Boolean).join(' · ');
-    this.#text('command-state', detail || (active ? 'Esperando una acción simulada.' : 'Esperando una acción manual.'));
-  }
-
   setEvent(event) {
-    this.element('receipt-wss').hidden = this.#showingGuestReceipt || event.tipo_evento === 'estado_actual';
+    this.element('receipt-wss').hidden = event.tipo_evento === 'estado_actual';
     const label = EVENT_LABELS[event.tipo_evento];
     const demo = event.id_demo ? formatCommandReferences(event.nombre_demo || `DEMO ${event.id_demo}`) : null;
     this.#text('last-event', demo ? `${label} · ${demo}` : label);
@@ -352,7 +223,7 @@ export class DashboardView {
     this.#text('event-detail', [command, code, timestamp].filter(Boolean).join(' · '));
   }
 
-  setDemo(state, { loading, busy, canStart, canOperateDemo = true, canSelectDemo = true }) {
+  setDemo(state, { loading, busy, canStart }) {
     const select = this.element('demo-select');
     if (state.catalog !== this.#demoCatalog || select.dataset.loading !== String(loading)) {
       this.#demoCatalog = state.catalog;
@@ -372,12 +243,12 @@ export class DashboardView {
       }
     }
     select.value = state.selectedId ?? '';
-    select.disabled = !state.catalog.length || busy || !canSelectDemo;
+    select.disabled = !state.catalog.length || busy;
     const description = state.catalog.find(demo => demo.id === state.selectedId)?.description;
     this.element('demo-description').hidden = !description;
     this.#text('demo-description', formatCommandReferences(description ?? ''));
-    this.element('demo-start').disabled = !state.canStart || !canOperateDemo;
-    this.element('demo-cancel').disabled = !state.canCancel || !canOperateDemo;
+    this.element('demo-start').disabled = !state.canStart;
+    this.element('demo-cancel').disabled = !state.canCancel;
     this.#setDemoStatus(state, busy, canStart);
 
     const details = this.element('demo-steps');
@@ -491,16 +362,5 @@ export class DashboardView {
       status.dataset.phase = phase;
       setText(status, text);
     }
-  }
-
-  clearForm() {
-    this.element('session-form').reset();
-    this.element('api-key').value = '';
-    this.setSessionError('');
-  }
-
-  setSessionError(message) {
-    this.element('session-error').hidden = !message;
-    this.#text('session-error', message);
   }
 }

@@ -41,11 +41,6 @@ export class ApiError extends Error {
   }
 }
 
-// Fetch accepts byte strings for header values. Reject control characters before trimming.
-export function isApiKeyInput(value) {
-  return typeof value === 'string' && !/[^\x20-\x7e\xa0-\xff]/.test(value) && Boolean(value.trim());
-}
-
 export class ApiClient {
   #baseUrl;
   #vehicleId;
@@ -61,7 +56,7 @@ export class ApiClient {
     baseUrl = CONFIG.apiUrl, vehicleId = CONFIG.vehicleId, fetchImpl,
     timeoutMs = CONFIG.requestTimeoutMs, healthTimeoutMs = CONFIG.healthTimeoutMs,
     databaseHealthTimeoutMs = CONFIG.databaseHealthTimeoutMs,
-    simulation = false,
+    simulation = false, operatorApiKey = CONFIG.operatorApiKey,
   } = {}) {
     const url = new URL(baseUrl);
     if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
@@ -80,6 +75,7 @@ export class ApiClient {
     this.#healthTimeoutMs = healthTimeoutMs;
     this.#databaseHealthTimeoutMs = databaseHealthTimeoutMs;
     this.#simulation = simulation;
+    this.setApiKey(operatorApiKey);
   }
 
   get hasApiKey() {
@@ -91,7 +87,8 @@ export class ApiClient {
       this.#apiKey = '';
       return false;
     }
-    if (this.#simulation || !isApiKeyInput(value)) {
+    // Fetch accepts byte strings for header values. Reject control characters before trimming.
+    if (this.#simulation || typeof value !== 'string' || /[^\x20-\x7e\xa0-\xff]/.test(value) || !value.trim()) {
       return false;
     }
     this.#apiKey = value.trim();
@@ -201,7 +198,7 @@ export class ApiClient {
   }) {
     const headers = { Accept: 'application/json' };
     if (method === 'POST') {
-      if (!this.hasApiKey) throw new ApiError('auth', 'Introduce la clave de control para continuar.');
+      if (!this.hasApiKey) throw new ApiError('auth', 'Falta configurar la clave de operador en assets/js/config.js.');
       if (!this.#simulation) headers['X-API-Key'] = this.#apiKey;
     }
     if (body !== undefined) headers['Content-Type'] = 'application/json';

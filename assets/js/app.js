@@ -2,10 +2,8 @@ import { CONFIG, isSimulation } from './config.js';
 import { Command } from './models/Command.js';
 import { Demo } from './models/Demo.js';
 import { Vehicle } from './models/Vehicle.js';
-import { ApiClient, isApiKeyInput } from './services/ApiClient.js';
+import { ApiClient } from './services/ApiClient.js';
 import { ConnectionService } from './services/ConnectionService.js';
-import { isGuestDirection, isLoopbackHost, PublicControlClient } from './services/PublicControlClient.js';
-import { PublicControlService } from './services/PublicControlService.js';
 import { WebSocketClient } from './services/WebSocketClient.js';
 import { CommandService } from './controllers/CommandService.js';
 import { DemoController } from './controllers/DemoController.js';
@@ -23,9 +21,7 @@ function catalogIsInvalid(error) {
 
 async function start() {
   const { vehicleId } = CONFIG;
-  const local = isLoopbackHost(location.hostname);
-  const publicSimulation = local && new URLSearchParams(location.search).get('modo') === 'turnos';
-  const simulation = publicSimulation || isSimulation(location.search);
+  const simulation = isSimulation(location.search);
   const transport = simulation ? (await import('./services/simulation.js')).createSimulation() : {};
   const api = new ApiClient({ simulation, ...transport });
   const indicators = new ConnectionIndicators(document);
@@ -44,43 +40,11 @@ async function start() {
   let wsConnected = false;
   let apiWasUnavailable = false;
   let currentView = null;
-  let guestWasControlling = false;
-  let publicStarted = false;
-  let pageActive = true;
 
-  const publicControl = simulation && !publicSimulation ? null : new PublicControlService({
-    client: new PublicControlClient({
-      baseUrl: publicSimulation ? location.origin : CONFIG.apiUrl, vehicleId, simulation: publicSimulation,
-    }),
-    onChange: ({ canStop: controlling }) => {
-      if (guestWasControlling && !controlling) joystick.reset();
-      guestWasControlling = controlling;
-      render();
-    },
-  });
-  const hasGuest = () => publicSimulation && publicControl.state.role === 'guest';
-  const canControl = () => {
-    if (!api.hasApiKey || vehicle?.active !== true) return false;
-    if (!publicControl) return true;
-    const { adminPermission, adminReady, status, windowOpen, busy } = publicControl.state;
-    return publicSimulation ? adminReady && !busy && !windowOpen && status === 'closed'
-      : adminPermission === 'authorized' || adminPermission === 'legacy';
-  };
-  const canStop = () => hasGuest() ? publicControl.state.canStop
-    : canControl() && Boolean(commands.getCommand('DETENER'));
-  const canCommand = key => catalogVerified && !apiWasUnavailable && Boolean(commands.getCommand(key)) &&
-    (hasGuest() ? publicControl.state.canMove && isGuestDirection(key)
-      : canStop() && !demo.busy && !commands.stopping);
-  const requestDirection = key => {
-    if (!canCommand(key)) return false;
-    if (!hasGuest()) return commands.request(key);
-    return publicControl.move(key);
-  };
-  const stopControl = () => hasGuest() ? void publicControl.requestStop() : commands.stop();
-  const sessionBusy = () => commands.busy || demo.busy;
-  const protectedRequestPending = () => commands.busy || demo.requestPending;
-  const canCloseSession = () => !sessionBusy() && !commands.mayBeMoving;
-  const canOpenWindow = () => canCloseSession() && !demo.state.stopPending;
+  const canControl = () => api.hasApiKey && vehicle?.active === true;
+  const canStop = () => canControl() && Boolean(commands.getCommand('DETENER'));
+  const canCommand = key => catalogVerified && !apiWasUnavailable && canStop() && !demo.busy && !commands.stopping && Boolean(commands.getCommand(key));
+  const controlBusy = () => commands.busy || demo.busy;
   const commands = new CommandService({
     api, vehicleId, canControl,
     isDemoBusy: () => demo.busy,
@@ -97,16 +61,14 @@ async function start() {
     element: view.element('joystick'),
     knob: view.element('joystick-knob'),
     canCommand,
-    onDirection: requestDirection,
-    onRelease: stopControl,
+    onDirection: key => commands.request(key),
+    onRelease: () => commands.stop(),
     onPreview: key => view.setPreview(key),
   });
   const connection = new ConnectionService({
     api,
     onApiState(state) {
       indicators.set('api', state);
-      if (!publicSimulation && publicControl && pageActive && state === 'available') startPublicControl();
-      if (publicControl && state === 'unavailable') publicControl.setOnline(false);
       if (state === 'unavailable' && !apiWasUnavailable) {
         apiWasUnavailable = true;
         catalogVerified = false;
@@ -124,29 +86,19 @@ async function start() {
     ...transport,
     onState(state) {
       indicators.set('ws', state);
-      const wasConnected = wsConnected;
       wsConnected = state === 'connected';
       demo.setConnected(wsConnected);
-      monitoring.setConnected(wsConnected);
-      if (wsConnected && !wasConnected && publicStarted) void publicControl.refresh();
+      monitoring?.setConnected(wsConnected);
       render();
     },
     onEvent(event) {
       view.setEvent(event);
       commands.handleEvent(event);
       demo.handleEvent(event);
-      monitoring.handleEvent(event);
+      monitoring?.handleEvent(event);
     },
     onInvalid: message => view.setNotice(message, true),
   });
-
-  function startPublicControl() {
-    if (!publicControl) return;
-    publicControl.setOnline(navigator.onLine);
-    if (publicStarted) return;
-    publicStarted = true;
-    publicControl.start();
-  }
 
   function render() {
     const catalogReady = catalogVerified && !apiWasUnavailable;
@@ -155,32 +107,19 @@ async function start() {
         : !catalog.some(command => command.active && command.key !== 'DETENER') ? 'Sin comandos activos' : '';
     view.setVehicle(vehicle, vehicleId, loading);
     monitoringView.setVehicle(vehicle, loading);
-    view.setCatalog(catalog, requestDirection);
+    view.setCatalog(catalog, key => commands.request(key));
     view.setControl({
-      armed: publicSimulation ? publicControl.state.adminPermission !== 'unverified' : !simulation && api.hasApiKey,
-      canCommand, canStop: canStop(),
-      canClose: canCloseSession(), busy: protectedRequestPending() || commands.mayBeMoving,
+      armed: api.hasApiKey, canCommand, canStop: canStop(),
       catalogReady, catalogStatus,
     });
     const inMonitoring = currentView === 'monitoreo';
     const demoState = demo.state;
-    view.element('open-session').hidden = (simulation && !publicSimulation) || inMonitoring || hasGuest();
-    view.element('stop').hidden = inMonitoring && !(canStop() && (hasGuest() || commands.mayBeMoving || sessionBusy() || demoState.stopPending));
-    view.setPublicControl(publicControl ? {
-      ...publicControl.state,
-      canEnable: publicControl.state.canEnable && canOpenWindow(),
-    } : null);
-    if (hasGuest()) view.setGuestCommand(publicControl.state.guestReceipt, { active: true });
-    else {
-      view.setGuestCommand(null);
-      view.setCommand(commands.state);
-    }
+    view.element('stop').hidden = inMonitoring && !(canStop() && (commands.mayBeMoving || controlBusy() || demoState.stopPending));
+    view.setCommand(commands.state);
     view.setDemo(demoState, {
       loading, busy: demo.busy,
-      canOperateDemo: canControl(),
-      canSelectDemo: !hasGuest(),
       canStart: demo.busy ? null
-        : !canControl() || !canStop() ? 'Habilita el control y verifica que DETENER esté disponible para iniciar.'
+        : !canStop() ? 'Verifica la configuración de operador y que DETENER esté disponible para iniciar.'
           : !wsConnected ? 'Espera la conexión WSS para observar el progreso.'
             : commands.mayBeMoving ? 'Pulsa DETENER antes de iniciar una DEMO.' : null,
     });
@@ -230,10 +169,7 @@ async function start() {
     const button = view.element('refresh');
     button.disabled = true;
     try {
-      await Promise.all([
-        connection.refresh(), loadCatalog(), !simulation && currentView === 'monitoreo' && monitoring.refresh(),
-        publicStarted && publicControl.refresh(),
-      ]);
+      await Promise.all([connection.refresh(), loadCatalog(), !simulation && currentView === 'monitoreo' && monitoring.refresh()]);
     } finally {
       button.disabled = false;
     }
@@ -246,7 +182,6 @@ async function start() {
     if (next === currentView) return;
 
     const inMonitoring = next === 'monitoreo';
-    if (inMonitoring && hasGuest()) joystick.reset({ stop: true });
     currentView = next;
     document.body.dataset.view = next;
     view.element('control-view').hidden = inMonitoring;
@@ -258,46 +193,16 @@ async function start() {
       if (link.dataset.view === next) link.setAttribute('aria-current', 'page');
       else link.removeAttribute('aria-current');
     }
-    for (const id of ['view-navigation', 'vehicle-detail', 'demo-detail', 'public-control']) {
+    for (const id of ['view-navigation', 'vehicle-detail', 'demo-detail']) {
       view.element(id).hidePopover?.();
     }
 
     if (!simulation && inMonitoring) void monitoring.activate();
-    else monitoring.deactivate();
+    else monitoring?.deactivate();
     render();
     if (focus) view.element(inMonitoring ? 'monitor-title' : 'drive-title').focus({ preventScroll: true });
   }
 
-  const dialog = view.element('session-dialog');
-  view.element('open-session').addEventListener('click', () => {
-    if (hasGuest()) return;
-    view.clearForm();
-    dialog.showModal();
-  });
-  view.element('close-session').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => view.clearForm());
-  view.element('session-form').addEventListener('submit', event => {
-    event.preventDefault();
-    if (hasGuest() || protectedRequestPending() || commands.mayBeMoving || !view.element('risk-ack').checked) return;
-    const input = view.element('api-key');
-    const key = input.value;
-    const accepted = publicSimulation ? isApiKeyInput(key) && publicControl.setAdminKey(key.trim()) : api.setApiKey(key);
-    input.value = '';
-    if (accepted && !publicSimulation) publicControl?.setAdminKey(key.trim());
-    render();
-    if (accepted) dialog.close();
-    else {
-      view.setSessionError('Introduce una clave válida para el encabezado de la API.');
-      input.focus();
-    }
-  });
-  view.element('clear-session').addEventListener('click', () => {
-    if (!canCloseSession()) return;
-    api.setApiKey('');
-    publicControl?.setAdminKey('');
-    dialog.close();
-    render();
-  });
   view.element('refresh').addEventListener('click', () => void refresh());
   const monitorRefresh = view.element('monitor-refresh');
   monitorRefresh.addEventListener('click', async () => {
@@ -320,59 +225,29 @@ async function start() {
   window.addEventListener('hashchange', () => selectView(true));
   view.element('stop').addEventListener('click', () => {
     joystick.reset();
-    stopControl();
+    commands.stop();
   });
   view.element('demo-select').addEventListener('change', event => void demo.select(event.target.value));
   view.element('demo-start').addEventListener('click', () => void demo.start());
   view.element('demo-cancel').addEventListener('click', () => void demo.cancel());
 
-  if (publicControl) {
-    view.element('public-take').addEventListener('click', () => void publicControl.acquire());
-    view.element('public-release').addEventListener('click', () => {
-      joystick.reset();
-      void publicControl.release();
-    });
-    view.element('public-open-window').addEventListener('click', () => {
-      const supervision = view.element('public-supervision');
-      if (!canOpenWindow() || !supervision.checked) return;
-      void publicControl.enableWindow(true);
-      view.resetSupervision();
-    });
-    view.element('public-close-window').addEventListener('click', () => void publicControl.disableWindow());
-    view.element('public-revoke').addEventListener('click', () => void publicControl.revoke());
-  }
-
-  window.addEventListener('online', () => {
-    if (publicSimulation) startPublicControl();
-    void refresh();
-  });
-  window.addEventListener('offline', () => publicControl?.setOnline(false));
+  window.addEventListener('online', () => void refresh());
   window.addEventListener('pagehide', () => {
-    pageActive = false;
-    monitoring.deactivate();
+    monitoring?.deactivate();
     joystick.reset({ stop: true });
-    api.setApiKey('');
-    publicStarted = false;
-    publicControl?.stop();
-    view.clearForm();
-    if (dialog.open) dialog.close();
     socket.stop();
     connection.stop();
   });
   window.addEventListener('pageshow', event => {
     if (!event.persisted) return;
-    pageActive = true;
     if (!simulation && currentView === 'monitoreo') void monitoring.activate();
-    if (publicSimulation) startPublicControl();
     socket.start();
     void connection.start();
     void loadCatalog();
   });
-  view.setSimulation(simulation, local, { publicSimulation });
+  view.setSimulation(simulation, ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname));
   if (simulation) monitoringView.showSimulation();
   selectView();
-  if (publicSimulation) startPublicControl();
-  else publicControl?.setOnline(false);
   socket.start();
   void connection.start();
   void loadCatalog();

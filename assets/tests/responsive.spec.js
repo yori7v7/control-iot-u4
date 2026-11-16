@@ -5,7 +5,6 @@ import { viewports } from './viewport-matrix.js';
 
 const APP = '/control-iot-u4/';
 const SIMULATION = `${APP}?modo=simulacion`;
-const PUBLIC_SIMULATION = `${APP}?modo=turnos`;
 const CRITICAL = [
   '#stop', '#direction-buttons [data-command]', '#extra-buttons [data-command]',
   '#demo-select', '#demo-start', '#demo-cancel',
@@ -16,9 +15,8 @@ const ESSENTIAL = [
 ];
 const OFFLINE_ESSENTIAL = [
   ...ESSENTIAL.filter(selector => !['#exit-simulation', '#simulation-banner'].includes(selector)),
-  '#open-session', '#control-mode',
+  '#control-mode',
 ];
-const PUBLIC_ESSENTIAL = [...OFFLINE_ESSENTIAL, '#simulation-banner', '#open-public-control'];
 const INSPECTORS = ['#demo-detail-toggle', '#vehicle-detail-toggle', '#views-toggle'];
 
 async function isolate(page, baseURL) {
@@ -41,39 +39,6 @@ async function openSimulation(page, baseURL) {
   await expect(page.locator('#stop')).toBeEnabled();
   await expect(page.locator('#demo-select')).toBeEnabled();
   return errors;
-}
-
-async function auditPublicControl(page, baseURL) {
-  const origin = new URL(baseURL).origin;
-  await page.route(`${origin}/publico/vehiculos/1/control`, route => route.fulfill({ json: {
-    id_vehiculo: 1, habilitado: true, estado: 'disponible',
-    vence_ventana_en: new Date(Date.now() + 1_200_000).toISOString(),
-    hora_servidor: new Date().toISOString(), revision: 1, simulado: true,
-  } }));
-  await page.goto(PUBLIC_SIMULATION);
-  await expect(page.locator('#control-mode')).toHaveText('Turno libre');
-  await expect(page.locator('#direction-buttons button:disabled, #extra-buttons button:disabled')).toHaveCount(12);
-  await expect(page.locator('#demo-start')).toBeDisabled();
-  await auditLayout(page, { essential: PUBLIC_ESSENTIAL });
-
-  await page.locator('#open-public-control').click();
-  await expect(page.locator('#public-control-role')).toHaveText('Observador');
-  await expect(page.locator('#public-take')).toBeEnabled();
-  await expect(page.locator('#public-window-time')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => {
-    const { clientWidth, clientHeight, scrollWidth, scrollHeight } = document.documentElement;
-    const panel = document.getElementById('public-control').getBoundingClientRect();
-    const stop = document.getElementById('stop').getBoundingClientRect();
-    return panel.left >= 0 && panel.top >= 0 && panel.right <= clientWidth && panel.bottom <= clientHeight &&
-      scrollWidth === clientWidth && scrollHeight === clientHeight && panel.top >= stop.bottom;
-  })).toBe(true);
-  if ([320, 1920].includes(page.viewportSize().width)) {
-    await page.evaluate(axe.source);
-    await auditAccessibility(page);
-  }
-  await page.keyboard.press('Escape');
-  await expect(page.locator('#public-control')).not.toBeVisible();
-  await expect(page.locator('#open-public-control')).toBeFocused();
 }
 
 async function auditAccessibility(page) {
@@ -186,7 +151,6 @@ for (const { group, mobile, sizes } of viewports) {
         await expect(page.locator('#stop')).toBeDisabled();
         await expect(page.locator('#demo-start')).toBeDisabled();
         await auditLayout(page, { essential: OFFLINE_ESSENTIAL });
-        await auditPublicControl(page, baseURL);
         expect(errors).toEqual([]);
       });
     }
@@ -301,41 +265,14 @@ test.describe('Cambios durante la operación', () => {
     expect(errors).toEqual([]);
   });
 
-  test('mantiene una salida accesible del diálogo con un área visible reducida', async ({ page, baseURL, context }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    const cdp = await context.newCDPSession(page);
-    const insets = { top: 20, bottom: 16 };
-    await cdp.send('Emulation.setSafeAreaInsetsOverride', { insets });
-    const errors = await isolate(page, baseURL);
-    await page.goto(APP);
-    const trigger = page.locator('#open-session');
-    const dialog = page.locator('#session-dialog');
-    await trigger.focus();
-    await page.keyboard.press('Enter');
-    await expect(dialog).toBeVisible();
-    await expect(page.locator('#api-key')).toBeFocused();
-
-    // The reduced viewport models a mobile browser reserving space for its keyboard.
-    await page.setViewportSize({ width: 390, height: 350 });
-    const close = page.locator('#close-session');
-    const bounds = await close.boundingBox();
-    expect(bounds).not.toBeNull();
-    expect(bounds.height).toBeGreaterThanOrEqual(44);
-    expect(bounds.y).toBeGreaterThanOrEqual(insets.top);
-    expect(bounds.y + bounds.height).toBeLessThanOrEqual(350 - insets.bottom);
-    expect(await close.evaluate(element => {
-      const rect = element.getBoundingClientRect();
-      return element.contains(document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2));
-    })).toBe(true);
-    await close.tap();
-    await expect(dialog).toBeHidden();
-    await expect(trigger).toBeFocused();
-
-    await page.keyboard.press('Enter');
-    await expect(dialog).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(dialog).toBeHidden();
-    await expect(trigger).toBeFocused();
+  test('conserva acceso directo y DETENER al reducir el viewport sin formularios', async ({ page, baseURL }) => {
+    const errors = await openSimulation(page, baseURL);
+    for (const [width, height] of [[390, 844], [320, 568], [568, 320], [844, 390]]) {
+      await page.setViewportSize({ width, height });
+      await expect(page.locator('form, dialog, #open-session, #api-key, #public-control')).toHaveCount(0);
+      await expect(page.locator('#stop')).toBeEnabled();
+      await auditLayout(page);
+    }
     expect(errors).toEqual([]);
   });
 });

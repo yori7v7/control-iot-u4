@@ -4,6 +4,8 @@ Consola web para operar y monitorear el vehículo IoT ID 1. **CONTROL** reúne e
 
 [Abrir Control IoT en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio del frontend](https://github.com/yori7v7/control-iot-u4)
 
+La integración definitiva de CONTROL directo está preparada únicamente en local: **44 pruebas unitarias y 83 de Chrome aprobadas**. Conserva los ajustes responsive del main y la clave automática de operador. [Archivos, validación y límites de esta integración](assets/docs/integracion-publicacion-4-2.md). Esta integración todavía no se ha publicado.
+
 Premium Dashboard 2.0 parte del estado validado en `e0b4121`. [Estado previo al rediseño](https://github.com/yori7v7/control-iot-u4/commit/e0b4121b028c0e8df91f14238ee1ad7265f05e85) · [Ampliación de ocho direcciones](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e) · [Entrega inicial](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611)
 
 **Autor** · Diego Yorel Castelán Silva, Ingeniería en Sistemas Computacionales  
@@ -28,14 +30,14 @@ La ruta base abre **Control**. Usa los enlaces de la cabecera o el botón **Vist
 
 ### Control
 
-1. En modo real, abre **Habilitar control**, introduce la clave administrativa y confirma que comprendes el riesgo. Una orden puede activar el vehículo. Para esta práctica, mantén el microcontrolador desconectado y realiza operaciones de control únicamente con autorización.
+1. Abre **CONTROL** directamente. La clave de operador ya configurada en `assets/js/config.js` se aplica automáticamente mediante `X-API-Key` solo a los POST protegidos. No hay formularios, turnos, roles ni aprobaciones. Una orden puede activar el vehículo.
 2. Usa el joystick con el dedo, el ratón o las flechas cuando tiene foco. Al volver al centro o soltar se solicita DETENER. Los ocho botones de la cruceta envían órdenes individuales y **DETENER** las interrumpe. Las diagonales y otros comandos se habilitan según el catálogo activo.
 3. Selecciona una DEMO y abre **Detalle de DEMO** para consultar **Movimientos programados**. **Ejecutar** envía la petición al backend y el panel actualiza el avance con los eventos WSS recibidos. **Cancelar** interrumpe la secuencia con su endpoint dedicado. **DETENER** intenta cancelar una DEMO activa conocida antes de enviar la orden de parada.
-4. Revisa el estado de la orden y los indicadores de conectividad. CONTROL presenta la solicitud REST, el evento WSS compatible cuando se observa y los errores operativos en la vista principal. **Actualizar conexión y catálogos** repite las lecturas. Desde **Sesión de control** puedes actualizar la clave o cerrar la sesión cuando no hay órdenes pendientes ni un movimiento manual sin detener.
+4. Revisa el estado de la orden y los indicadores de conectividad. CONTROL presenta la solicitud REST, el evento WSS compatible cuando se observa y los errores operativos en la vista principal. **Actualizar conexión y catálogos** repite las lecturas. La DEMO programada mantiene ejecución y cancelación; **DEMO_ORIGINAL** permanece bloqueada incluso si aparece activa en el catálogo.
 
 Al finalizar normalmente o tras aceptar por HTTP un DETENER posterior a la cancelación, el panel conserva el resultado visible unos cuatro segundos. Luego vuelve a «Sin DEMO en ejecución», mantiene la selección y guarda la evidencia disponible en **Último resultado**. Si DETENER falla o agota el plazo, permanece el aviso.
 
-**Turnos de control** muestra la disponibilidad para invitados. El contrato de la etapa 5.2 admite turnos simulados exclusivamente en loopback. El CONTROL autenticado sigue disponible con el backend en modo público deshabilitado. [Integración y prueba local](assets/docs/control-publico.md#integración-de-la-etapa-53)
+CONTROL y MONITOREO abren para cualquier visitante en la misma interfaz. GET y WSS no envían la clave. Los controles dependen del vehículo y catálogo disponibles; iniciar la DEMO programada requiere WSS para observar su progreso.
 
 ### Monitoreo
 
@@ -49,13 +51,13 @@ El indicador **DEMO programada** usa el WSS compartido al cambiar de vista. Un p
 
 ## Premium Dashboard 2.0
 
-La consola de grafito y rojo reúne el joystick circular de ocho direcciones, una cruceta de botones y los comandos auxiliares. La cabecera mantiene **DETENER** junto a la sesión y la barra muestra WSS, API y RDS por separado. El rediseño conserva los IDs dinámicos del catálogo, la prioridad de DETENER y la lógica de los controladores y transportes. La simulación local sigue funcionando sin red.
+La consola de grafito y rojo reúne el joystick circular de ocho direcciones, una cruceta de botones y los comandos auxiliares. La cabecera mantiene **DETENER** y la barra muestra WSS, API y RDS por separado. El rediseño conserva los IDs dinámicos del catálogo, la prioridad de DETENER y la lógica de los controladores y transportes. La simulación local sigue funcionando sin red.
 
 - En vertical con poca altura, joystick y cruceta comparten una fila. Con más altura, el joystick ocupa una fila propia y la cruceta comparte espacio con los comandos auxiliares.
 - En horizontal compacto, el control manual ocupa la zona izquierda y la DEMO la derecha. CONTROL conserva la confirmación REST y WSS en línea tras retirar el botón y panel **Diagnóstico**. Los paneles de DEMO y vehículo conservan los pasos, el último resultado y los créditos. El aviso **Pulsa Detener** permanece visible mientras esté pendiente una parada posterior a la cancelación.
-- Las direcciones responden con una pulsación breve. Luces usa un destello, Velocidad un giro, Claxon una vibración visual y Demostración original un pulso del icono. El efecto indica interacción local, se reinicia al repetir la pulsación y respeta la preferencia de movimiento reducido. El firmware envía pulsos de 300 ms en los cuatro auxiliares. Las luces y los tres modos de velocidad carecen de telemetría en el backend, por lo que la interfaz no estima ni conserva un estado físico. [Firmware de referencia](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3c26b3aa50ad21c6802cdb89b10aa6fdec0b217d/firmware/Excavadora_IoT_AWS/Excavadora_IoT_AWS.ino#L217-L239)
+- Las direcciones responden con una pulsación breve. Luces usa un destello, Velocidad un giro y Claxon una vibración visual. Demostración original permanece deshabilitada. El efecto indica interacción local, se reinicia al repetir la pulsación y respeta la preferencia de movimiento reducido. Las luces y los tres modos de velocidad carecen de telemetría en el backend, por lo que la interfaz no estima ni conserva un estado físico. [Firmware de referencia](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3c26b3aa50ad21c6802cdb89b10aa6fdec0b217d/firmware/Excavadora_IoT_AWS/Excavadora_IoT_AWS.ino#L217-L239)
 - MONITOREO apila el reporte y el historial en teléfono vertical. En horizontal y pantallas amplias los presenta lado a lado. La tabla pagina según el espacio disponible para conservar los diez registros sin scroll interno. **Anterior** y **Siguiente** funcionan con teclado y tacto. La primera página sigue las novedades. Al consultar páginas anteriores, la vista mantiene la referencia al primer ID que siga disponible y avisa que hay movimientos más recientes.
-- El layout reserva las áreas seguras del navegador. Los paneles de detalle y el cuerpo del diálogo de sesión pueden desplazarse internamente si el contenido crece. La acción **Volver** permanece en el pie del diálogo. Fuera de la matriz, un viewport muy reducido o con zoom puede requerir desplazamiento para conservar la legibilidad y los controles táctiles.
+- El layout reserva las áreas seguras del navegador. Los paneles de detalle pueden desplazarse internamente si el contenido crece. Fuera de la matriz, un viewport muy reducido o con zoom puede requerir desplazamiento para conservar la legibilidad y los controles táctiles.
 
 La validación de Premium Dashboard 2.0 aprobó **27 pruebas de Node y 38 de Chrome**. La suite responsive verificó cero desplazamiento horizontal y vertical, ausencia de solapamientos y áreas de al menos 44 × 44 px CSS en los botones de movimiento, DETENER y controles de DEMO de los 18 tamaños siguientes.
 
@@ -95,9 +97,9 @@ Las sondas de salud se ejecutan en paralelo. La API tiene un límite de 6 segund
 
 ## Seguridad y límites
 
-- MONITOREO usa GET y WSS públicos. CONTROL físico conserva la sesión actual para autorizar sus POST. El acceso de operadores identificados sin clave manual podría usar OIDC y PKCE. Para acceso verdaderamente público, la propuesta de FastAPI requiere habilitación del propietario, turno exclusivo y parada segura. Un modo público permite a desconocidos intentar operar el vehículo. Su implementación requiere una revisión y PR independientes. [Propuesta de acceso público](./assets/docs/control-publico.md) · [Seguridad OAuth 2.0](https://www.rfc-editor.org/rfc/rfc9700.html)
-- La clave se conserva en memoria durante la sesión de la página. Se añade solo a los POST protegidos y se borra del campo de entrada. Los errores visibles usan mensajes definidos por el cliente. Las políticas de contenido y referencia restringen scripts, conexiones y envíos de formulario.
-- Una clave administrativa en el navegador es adecuada únicamente para la prueba personal autorizada. Las solicitudes protegidas aparecen en las herramientas de red de esa sesión. Oculta el encabezado al preparar evidencia académica.
+- MONITOREO usa GET y WSS públicos. CONTROL utiliza exclusivamente la clave de operador separada de la administrativa, ya autorizada en el backend. No consulta rutas administrativas ni servicios de turnos.
+- La constante de operador del frontend será pública al publicar el sitio. Se añade únicamente a los tres POST protegidos (movimientos, ejecutar y cancelar DEMO). No se almacena en cookies ni almacenamiento del navegador. Los errores visibles usan mensajes definidos por el cliente.
+- Las pruebas automatizadas usan claves ficticias y transportes simulados o interceptados. No se imprimen credenciales ni se envían POST reales. No incluyas encabezados sensibles en evidencia académica.
 - HTTP y WSS comprueban actividad del backend. Un timeout puede ocurrir después de que el servidor reciba una orden. Cerrar la página o cancelar Fetch no confirma una parada física. Una DEMO iniciada desde otro cliente durante una desconexión puede quedar fuera del estado observado por este panel.
 - La cancelación dedicada de DEMO y la orden DETENER cumplen funciones diferentes. Un fallo al cancelar deja el estado de ejecución incierto aunque se intente enviar DETENER.
 

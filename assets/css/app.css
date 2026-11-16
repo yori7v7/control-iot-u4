@@ -536,15 +536,6 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   overflow-wrap: anywhere;
 }
 .inspector-body p { margin-block: 0 .5rem; }
-.public-control { max-width: 26rem; }
-.public-control-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 .65rem; }
-#public-control-role { color: var(--text); font-weight: 710; }
-#public-control-simulation, .public-control-time { color: var(--muted); font: .75rem/1.5 var(--mono); }
-.public-control-time span { color: var(--text); font-weight: 720; }
-#public-control-message { color: var(--signal); }
-.public-control-actions { display: flex; flex-wrap: wrap; gap: .4rem; }
-.public-control-admin .form-check { margin: .55rem 0 .65rem; }
-#public-exit-simulation { display: inline-flex; min-height: 24px; align-items: center; margin-top: .5rem; color: var(--muted); }
 .control-receipt {
   min-width: 0;
   border-top: 1px solid var(--edge);
@@ -566,34 +557,6 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
 .demo-steps li { padding-block: .22rem; }
 .credits { display: grid; gap: .2rem; border-top: 1px solid var(--edge); padding-block: .6rem; color: var(--muted); font-size: .78rem; }
 .vehicle-identity strong { margin-inline-end: .35rem; color: var(--signal); font: 650 .74rem var(--mono); }
-
-.session-dialog {
-  --session-top: max(6px, var(--safe-top), var(--visible-top, 0px));
-  --session-bottom: max(6px, var(--safe-bottom), var(--visible-bottom, 0px));
-  position: fixed;
-  inset: var(--session-top) max(6px, var(--safe-right)) var(--session-bottom) max(6px, var(--safe-left));
-  width: min(30rem, calc(100% - max(12px, var(--safe-left) + var(--safe-right))));
-  max-height: calc(100% - var(--session-top) - var(--session-bottom));
-  margin: auto;
-  border: 1px solid #936a78;
-  border-radius: .72rem;
-  padding: 0;
-  background: #251b25;
-  color: var(--text);
-  box-shadow: 0 .8rem 4rem #070407ce;
-}
-.session-dialog[open] { display: grid; grid-template-rows: minmax(0, 1fr); animation: panel-in 170ms ease-out; }
-.session-dialog::backdrop { background: #09060bdc; }
-.session-dialog form { display: grid; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
-.session-dialog .panel-heading { padding: .68rem .9rem .5rem; }
-.session-dialog .panel-heading h2 { display: block; }
-.session-dialog .panel-heading p { margin: .2rem 0 0; color: var(--muted); font-size: .75rem; }
-.session-body { min-height: 0; padding: .3rem .9rem .6rem; overflow: auto; }
-.session-body .muted { font-size: .81rem; }
-.session-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; border-top: 1px solid var(--edge); padding: .42rem .9rem; }
-.form-check { display: flex; gap: .55rem; align-items: start; }
-.form-check-label { min-height: 2.75rem; cursor: pointer; }
-.session-error { margin: .35rem 0 0; color: var(--signal); font-size: .86rem; }
 
 @keyframes panel-in {
   from { translate: 0 .25rem; }
@@ -930,7 +893,6 @@ progress { width: 100%; height: .36rem; margin-block: .08rem; accent-color: var(
   }
   .right-column { grid-template-rows: auto auto; }
   .inspector-actions, #vehicle-detail-toggle, #demo-detail-close, #vehicle-detail-close { display: none; }
-  .public-control { display: none; }
 }
 
 .view-links-wide, #vehicle-detail-toggle { display: none; }

@@ -8,7 +8,6 @@ const MONITOR = `${APP}#monitoreo`;
 const VEHICLE = `/vehiculos/${CONFIG.vehicleId}`;
 const STATE = `${VEHICLE}/estado`;
 const HISTORY = `${VEHICLE}/historial`;
-const PUBLIC_STATUS = `/publico${VEHICLE}/control`;
 const WHEN = '2026-11-11T18:01:47';
 const FORWARD = 'Avanzar a la derecha';
 const REVERSE = 'Retroceder a la izquierda';
@@ -154,10 +153,6 @@ async function intercept(page, baseURL, { state = savedState(), history = [] } =
     if (path === VEHICLE) return json(vehicle);
     if (path === `${VEHICLE}/comandos`) return json(catalog);
     if (path === `${VEHICLE}/demos`) return json([]);
-    if (path === PUBLIC_STATUS) return json({
-      id_vehiculo: CONFIG.vehicleId, habilitado: false, estado: 'cerrado',
-      vence_ventana_en: null, hora_servidor: new Date().toISOString(), revision: 0, simulado: false,
-    });
     if (path === STATE) return fixtures.respondState ? fixtures.respondState(json) : json(fixtures.state);
     if (path === HISTORY) return fixtures.respondHistory ? fixtures.respondHistory(json) : json(fixtures.history);
     fixtures.unexpected.push(`GET ${path}`);
@@ -214,7 +209,7 @@ test('abre MONITOREO sin clave, limita el historial ordenado a diez y carga asse
 
   expect([...fixtures.loadedAssets]).toEqual(expect.arrayContaining([
     `${APP}assets/css/app.css`, `${APP}assets/css/vendor/bootstrap.min.css`,
-    `${APP}assets/js/app.js`, `${APP}assets/js/ui/sessionViewport.js`,
+    `${APP}assets/js/app.js`,
   ]));
   const favicon = await page.locator('link[rel="icon"]').getAttribute('href');
   expect(new URL(favicon, page.url()).pathname).toBe(`${APP}assets/favicon.svg`);
@@ -232,7 +227,7 @@ test('abre MONITOREO sin clave, limita el historial ordenado a diez y carga asse
   await expect(page.locator(monitor)).not.toBeVisible();
   await expect(page.locator('#joystick')).toBeVisible();
   await expect(page.locator('#stop')).toBeVisible();
-  await expect(page.locator('#stop')).toBeDisabled();
+  await expect(page.locator('#stop')).toBeEnabled();
   await expect(page.locator('#demo-select')).toBeVisible();
   await page.goBack();
   await expect(page.locator(monitor)).toBeVisible();

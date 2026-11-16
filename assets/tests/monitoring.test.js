@@ -27,7 +27,7 @@ const nextTurn = () => new Promise(resolve => setImmediate(resolve));
 
 function mockedApi(...responses) {
   const calls = [];
-  const api = new ApiClient({ fetchImpl: async (url, options) => {
+  const api = new ApiClient({ operatorApiKey: 'unit-fixture-only', fetchImpl: async (url, options) => {
     calls.push({ path: new URL(url).pathname, ...options });
     return responses.shift();
   } });
