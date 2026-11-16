@@ -22,7 +22,7 @@ const fullCatalog = [
   ...[
     [302, 'RETROCEDER', 2], [306, 'RETROCEDER_IZQUIERDA', 6],
     [309, 'AVANZAR_DERECHA', 9], [405, 'AVANZAR_IZQUIERDA', 5],
-    [410, 'RETROCEDER_DERECHA', 10], [564, 'DEMO_ORIGINAL', 64], [628, 'CLAXON', 128],
+    [410, 'RETROCEDER_DERECHA', 10], [10, 'DEMO_ORIGINAL', 64], [628, 'CLAXON', 128],
   ].map(([id_comando, nombre, codigo]) => ({
     id_comando, id_vehiculo: 1, nombre, codigo, activo: true, descripcion: null,
   })),
@@ -236,7 +236,7 @@ test('recupera el catálogo dinámico y bloquea los botones sin conexión, inact
   await refresh.click();
   await expect(refresh).toBeEnabled();
   await expect(api).toHaveText('Disponible');
-  await expect(enabled).toHaveCount(11);
+  await expect(enabled).toHaveCount(12);
   await left.click();
   await expect(page.locator('#last-command')).toHaveText('Avanzar a la izquierda · ID 405');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
@@ -256,7 +256,7 @@ test('recupera el catálogo dinámico y bloquea los botones sin conexión, inact
   await refresh.click();
   await expect(refresh).toBeEnabled();
   await expect(buttons).toHaveCount(12);
-  await expect(enabled).toHaveCount(7);
+  await expect(enabled).toHaveCount(8);
   const unavailable = page.locator('[data-command="AVANZAR_IZQUIERDA"], [data-command="RETROCEDER_DERECHA"], [data-command="VELOCIDAD"], [data-command="CLAXON"]');
   await expectBlockedCommands(page, unavailable, 4);
   await page.locator('[data-command="LUCES"]').click();
@@ -274,7 +274,7 @@ test('recupera el catálogo dinámico y bloquea los botones sin conexión, inact
   fixtures.catalog = fullCatalog;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await expect(api).toHaveText('Disponible');
-  await expect(enabled).toHaveCount(11);
+  await expect(enabled).toHaveCount(12);
   await page.locator('#stop').click();
   await expect(page.locator('#last-command')).toHaveText('Detener · ID 11');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
@@ -354,7 +354,7 @@ test.describe('móvil táctil', () => {
   });
 });
 
-test('abre ambas vistas directamente sin turnos y bloquea DEMO_ORIGINAL activa', async ({ page }) => {
+test('abre ambas vistas directamente sin turnos y habilita DEMO_ORIGINAL activa', async ({ page }) => {
   const fixtures = await interceptBackend(page, { catalog: fullCatalog });
   for (const hash of ['#control', '#monitoreo', '#control']) {
     await page.goto(`${APP}${hash}`);
@@ -365,12 +365,55 @@ test('abre ambas vistas directamente sin turnos y bloquea DEMO_ORIGINAL activa',
       await expect(page.locator('#control-mode')).toHaveText('HABILITADO');
       await expect(page.locator('[data-command="AVANZAR"]')).toBeEnabled();
       const original = page.locator('[data-command="DEMO_ORIGINAL"]');
-      await expect(original).toBeDisabled();
-      await original.dispatchEvent('click');
+      await expect(original).toBeEnabled();
     }
   }
   expect(fixtures.posts).toEqual([]);
   expect(fixtures.requests.some(({ path }) => /^\/(admin|publico)\//.test(path))).toBe(false);
+});
+
+test('Demostración original usa ID 10 y código 64 y respeta catálogo, DEMO y control habilitado', async ({ page }) => {
+  const inactiveCatalog = fullCatalog.map(command => command.nombre === 'DEMO_ORIGINAL'
+    ? { ...command, activo: false } : command);
+  const fixtures = await interceptBackend(page, { catalog: inactiveCatalog });
+  await page.goto(APP);
+  await expect(page.locator('#control-mode')).toHaveText('HABILITADO');
+  const original = page.getByRole('button', { name: 'Demostración original', exact: true });
+  await expect(original).toBeVisible();
+  await expect(original).toBeDisabled();
+  await original.dispatchEvent('click');
+  expect(fixtures.posts).toHaveLength(0);
+
+  fixtures.catalog = fullCatalog.filter(command => command.nombre !== 'DEMO_ORIGINAL');
+  await page.locator('#refresh').click();
+  await expect(page.locator('#refresh')).toBeEnabled();
+  await expect(original).toBeDisabled();
+
+  fixtures.catalog = fullCatalog;
+  await page.locator('#refresh').click();
+  await expect(original).toBeEnabled();
+  await original.click();
+  await expect(page.locator('#last-command')).toHaveText('Demostración original · ID 10');
+  await expect(page.locator('#command-state')).toContainText('HTTP 200');
+  expect(fixtures.posts.map(({ path, body }) => ({ path, body }))).toEqual([
+    { path: MOVEMENT, body: { id_comando: 10 } },
+  ]);
+  expect(fixtures.lastMovement.comando).toBe('DEMO_ORIGINAL');
+  expect(fixtures.lastMovement.codigo).toBe(64);
+
+  fixtures.emitDemo('demo_inicio');
+  await expect(original).toBeDisabled();
+  await original.dispatchEvent('click');
+  expect(fixtures.posts).toHaveLength(1);
+  fixtures.emitDemo('demo_fin');
+  await expect(original).toBeEnabled();
+
+  fixtures.operatorApiKey = '';
+  await page.reload();
+  await expect(page.locator('#control-mode')).toHaveText('Falta configurar clave');
+  await expect(original).toBeDisabled();
+  await original.dispatchEvent('click');
+  expect(fixtures.posts).toHaveLength(1);
 });
 
 test('sin clave configurada bloquea CONTROL sin presentar formularios', async ({ page }) => {
@@ -566,7 +609,7 @@ test('los pulsos de los iconos conservan el envío y la prioridad de DETENER', a
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
   expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([88, 11]);
 
-  for (const [key, id] of [['AVANZAR_DERECHA', 309], ['VELOCIDAD', 99], ['CLAXON', 628]]) {
+  for (const [key, id] of [['AVANZAR_DERECHA', 309], ['VELOCIDAD', 99], ['CLAXON', 628], ['DEMO_ORIGINAL', 10]]) {
     const button = page.locator(`[data-command="${key}"]`);
     await expect(button).toBeEnabled();
     const duration = await button.evaluate(element => {
@@ -587,7 +630,7 @@ test('los pulsos de los iconos conservan el envío y la prioridad de DETENER', a
   expect(movingIcons).toBe(0);
   await expect(page.locator('#last-command')).toHaveText('Luces · ID 88');
   await expect(page.locator('#command-state')).toContainText('HTTP 200');
-  expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([88, 11, 309, 99, 628, 88]);
+  expect(fixtures.posts.map(post => post.body.id_comando)).toEqual([88, 11, 309, 99, 628, 10, 88]);
   expect(fixtures.posts.every(post => post.path === MOVEMENT && post.key === KEY)).toBe(true);
   expect(fixtures.sentToSocket).toEqual([]);
   expect(errors).toEqual([]);

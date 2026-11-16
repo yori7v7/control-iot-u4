@@ -25,18 +25,42 @@ function nextTurn() {
   return new Promise(resolve => setImmediate(resolve));
 }
 
-test('DEMO_ORIGINAL permanece bloqueada aunque el catálogo la marque activa', () => {
+test('DEMO_ORIGINAL activa conserva ID 10 y código 64 y respeta los bloqueos operativos', async () => {
+  const original = {
+    id: 10, name: 'DEMO_ORIGINAL', key: 'DEMO_ORIGINAL', code: 64, active: true,
+  };
   const sent = [];
   const service = new CommandService({ vehicleId: 1, api: {
-    sendCommand(id) { sent.push(id); },
+    async sendCommand(id) {
+      sent.push(id);
+      return { resultado: 'ok', id_vehiculo: 1, id_comando: id,
+        comando: original.name, codigo: original.code, fecha_actualizacion: TIMESTAMP,
+        conectado: false, origen: 'API' };
+    },
   } });
-  service.setCatalog([...CATALOG, {
-    id: 10, name: 'DEMO_ORIGINAL', key: 'DEMO_ORIGINAL', code: 64, active: true,
-  }]);
-  assert.equal(service.getCommand('DEMO_ORIGINAL'), null);
-  assert.equal(service.request('DEMO_ORIGINAL'), false);
-  assert.deepEqual(sent, []);
+  service.setCatalog([...CATALOG, original]);
+  assert.equal(service.getCommand('DEMO_ORIGINAL'), original);
+  assert.equal(service.request('DEMO_ORIGINAL'), true);
+  await nextTurn();
+  assert.deepEqual(sent, [10]);
+  assert.equal(service.state.phase, 'accepted');
+  assert.equal(service.state.command.code, 64);
   assert.ok(service.getCommand('DETENER'));
+
+  for (const { label, catalog, canControl = true, demoBusy = false } of [
+    { label: 'inactiva', catalog: [...CATALOG, { ...original, active: false }] },
+    { label: 'ausente', catalog: CATALOG },
+    { label: 'control deshabilitado', catalog: [...CATALOG, original], canControl: false },
+    { label: 'DEMO programada activa', catalog: [...CATALOG, original], demoBusy: true },
+    { label: 'sin DETENER', catalog: [original] },
+  ]) {
+    const blocked = new CommandService({ vehicleId: 1, api: {
+      sendCommand(id) { sent.push(id); },
+    }, canControl: () => canControl, isDemoBusy: () => demoBusy });
+    blocked.setCatalog(catalog);
+    assert.equal(blocked.request('DEMO_ORIGINAL'), false, label);
+  }
+  assert.deepEqual(sent, [10]);
 });
 
 function movement(id) {
