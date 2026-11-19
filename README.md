@@ -1,4 +1,8 @@
-# Control IoT · Prácticas 4.1 y 4.2
+# Control IoT · Plataforma 4.3
+
+[Guía de la plataforma 4.3 y pruebas locales](docs/4.3/README.md). La rama de actividad integra Administración, Control y Monitoreo. La activación del backend 4.3 precede a la publicación del frontend en GitHub Pages.
+
+## Referencia de las prácticas 4.1 y 4.2
 
 Consola web para operar y monitorear el vehículo IoT ID 1. **CONTROL** reúne el joystick, los comandos y las demostraciones de la práctica 4.1. **MONITOREO** presenta el estado y el historial persistidos para la práctica 4.2. Ambas vistas comparten el backend FastAPI en AWS, el cliente HTTPS y una suscripción WSS. La interfaz usa HTML semántico, Bootstrap 5.3.8 local y clases JavaScript con módulos nativos.
 
