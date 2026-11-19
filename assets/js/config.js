@@ -1,9 +1,7 @@
 const apiUrl = 'https://100-30-4-62.nip.io';
 const vehicleId = 1;
 
-// Configurar solo después de verificar la autorización del backend.
-// Esta constante será pública al publicar el frontend en GitHub Pages.
-export const OPERATOR_API_KEY = 'HzwLUKP163cawhYQ7c9W-nfIqgLgey-Kd0mHI5AGgJ8';
+export const OPERATOR_API_KEY = '';
 
 export const CONFIG = Object.freeze({
   apiUrl,

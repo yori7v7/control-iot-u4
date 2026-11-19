@@ -47,6 +47,8 @@ function isEvent(event, vehicleId) {
 export class WebSocketClient {
   #url;
   #vehicleId;
+  #getProtocols;
+  #generation = 0;
   #WebSocket;
   #onState;
   #onEvent;
@@ -63,17 +65,19 @@ export class WebSocketClient {
 
   constructor({
     url = CONFIG.wsUrl, vehicleId = CONFIG.vehicleId, WebSocketImpl = globalThis.WebSocket,
-    onState, onEvent, onInvalid = () => {},
+    onState, onEvent, onInvalid = () => {}, getProtocols = null,
     retryBaseMs = 1000, retryMaxMs = 30000, handshakeTimeoutMs = 7000,
   }) {
     const parsed = new URL(url);
-    if (parsed.protocol !== 'wss:' || parsed.username || parsed.password || parsed.search || parsed.hash) {
+    const local = parsed.protocol === 'ws:' && parsed.hostname === '127.0.0.1' && parsed.port === '8043';
+    if ((!local && parsed.protocol !== 'wss:') || parsed.username || parsed.password || parsed.search || parsed.hash) {
       throw new TypeError('La dirección WebSocket debe ser WSS y no incluir credenciales.');
     }
     if (!isEntityId(vehicleId)) throw new TypeError('El identificador del vehículo no es válido.');
     this.#url = parsed.href;
     this.#vehicleId = vehicleId;
     this.#WebSocket = WebSocketImpl;
+    this.#getProtocols = getProtocols;
     this.#onState = onState;
     this.#onEvent = onEvent;
     this.#onInvalid = onInvalid;
@@ -96,6 +100,7 @@ export class WebSocketClient {
 
   stop() {
     this.#running = false;
+    this.#generation += 1;
     clearTimeout(this.#retryTimer);
     this.#retryTimer = null;
     this.#release();
@@ -109,13 +114,16 @@ export class WebSocketClient {
     this.#onState(state);
   }
 
-  #connect() {
+  async #connect() {
     if (!this.#running) return;
+    const generation = ++this.#generation;
     let socket;
     try {
-      socket = new this.#WebSocket(this.#url);
+      const protocols = this.#getProtocols && await this.#getProtocols();
+      if (!this.#running || generation !== this.#generation) return;
+      socket = protocols ? new this.#WebSocket(this.#url, protocols) : new this.#WebSocket(this.#url);
     } catch {
-      this.#retry();
+      if (this.#running && generation === this.#generation) this.#retry();
       return;
     }
 

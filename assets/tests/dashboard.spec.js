@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './regression-fixture.js';
 import axe from 'axe-core';
 import { CONFIG } from '../js/config.js';
 

@@ -19,11 +19,12 @@ function catalogIsInvalid(error) {
   return error.status === 404 || error.kind === 'format' || error instanceof TypeError;
 }
 
-async function start() {
-  const { vehicleId } = CONFIG;
-  const simulation = isSimulation(location.search);
+async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOptions = {},
+                       simulation = isSimulation(location.search), signal } = {}) {
+  const listeners = { signal };
   const transport = simulation ? (await import('./services/simulation.js')).createSimulation() : {};
-  const api = new ApiClient({ simulation, ...transport });
+  const api = new ApiClient({ vehicleId, simulation, ...transport, ...apiOptions });
+  if (signal?.aborted) return;
   const indicators = new ConnectionIndicators(document);
   const monitoringView = new MonitoringView(document, vehicleId);
   const monitoring = new MonitoringController({
@@ -83,7 +84,7 @@ async function start() {
     onDatabaseState: state => indicators.set('rds', state),
   });
   const socket = new WebSocketClient({
-    ...transport,
+    vehicleId, ...transport, ...socketOptions,
     onState(state) {
       indicators.set('ws', state);
       wsConnected = state === 'connected';
@@ -101,6 +102,7 @@ async function start() {
   });
 
   function render() {
+    if (signal?.aborted) return;
     const catalogReady = catalogVerified && !apiWasUnavailable;
     const catalogStatus = apiWasUnavailable ? 'Sin conexión'
       : !catalogReady ? (loading ? 'Esperando catálogo' : 'Catálogo sin verificar')
@@ -134,6 +136,7 @@ async function start() {
       api.getCommands().then(rows => Command.forVehicle(rows, vehicleId)),
       api.getDemos().then(rows => Demo.forVehicle(rows, vehicleId)),
     ]).then(([vehicleResult, commandsResult, demosResult]) => {
+      if (signal?.aborted) return;
       if (vehicleResult.status === 'fulfilled') vehicle = vehicleResult.value;
       else if (catalogIsInvalid(vehicleResult.reason)) vehicle = null;
       catalogVerified = commandsResult.status === 'fulfilled';
@@ -203,7 +206,7 @@ async function start() {
     if (focus) view.element(inMonitoring ? 'monitor-title' : 'drive-title').focus({ preventScroll: true });
   }
 
-  view.element('refresh').addEventListener('click', () => void refresh());
+  view.element('refresh').addEventListener('click', () => void refresh(), listeners);
   const monitorRefresh = view.element('monitor-refresh');
   monitorRefresh.addEventListener('click', async () => {
     if (simulation) return;
@@ -213,38 +216,45 @@ async function start() {
     } finally {
       monitorRefresh.disabled = false;
     }
-  });
+  }, listeners);
   const navigation = view.element('view-navigation');
   navigation.addEventListener('click', event => {
     if (event.target.closest('a[data-view]')) navigation.hidePopover?.();
-  });
+  }, listeners);
   view.element('views-vehicle-detail').addEventListener('click', () => {
     navigation.hidePopover?.();
     view.element('vehicle-detail').showPopover?.();
-  });
-  window.addEventListener('hashchange', () => selectView(true));
+  }, listeners);
+  window.addEventListener('hashchange', () => selectView(true), listeners);
   view.element('stop').addEventListener('click', () => {
     joystick.reset();
     commands.stop();
-  });
-  view.element('demo-select').addEventListener('change', event => void demo.select(event.target.value));
-  view.element('demo-start').addEventListener('click', () => void demo.start());
-  view.element('demo-cancel').addEventListener('click', () => void demo.cancel());
+  }, listeners);
+  view.element('demo-select').addEventListener('change', event => void demo.select(event.target.value), listeners);
+  view.element('demo-start').addEventListener('click', () => void demo.start(), listeners);
+  view.element('demo-cancel').addEventListener('click', () => void demo.cancel(), listeners);
 
-  window.addEventListener('online', () => void refresh());
+  window.addEventListener('online', () => void refresh(), listeners);
   window.addEventListener('pagehide', () => {
     monitoring?.deactivate();
     joystick.reset({ stop: true });
     socket.stop();
     connection.stop();
-  });
+  }, listeners);
   window.addEventListener('pageshow', event => {
     if (!event.persisted) return;
     if (!simulation && currentView === 'monitoreo') void monitoring.activate();
     socket.start();
     void connection.start();
     void loadCatalog();
-  });
+  }, listeners);
+  signal?.addEventListener('abort', () => {
+    joystick.destroy();
+    if (commands.mayBeMoving || demo.busy) commands.stop();
+    monitoring.deactivate();
+    socket.stop();
+    connection.stop();
+  }, { once: true });
   view.setSimulation(simulation, ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname));
   if (simulation) monitoringView.showSimulation();
   selectView();
@@ -253,4 +263,10 @@ async function start() {
   void loadCatalog();
 }
 
-void start().catch(() => view.setNotice('El panel no pudo inicializarse. Recarga la página para volver a intentar.', true));
+const local = ['localhost', '127.0.0.1'].includes(location.hostname);
+const regression = local && (new URLSearchParams(location.search).get('modo') === 'regresion' || window.__iot43Regression);
+const boot = isSimulation(location.search) || regression
+  ? mount()
+  : import('./platform43/portal.js').then(({ portal }) => portal(mount));
+
+void boot.catch(() => view.setNotice('El panel no pudo inicializarse. Recarga la página para volver a intentar.', true));

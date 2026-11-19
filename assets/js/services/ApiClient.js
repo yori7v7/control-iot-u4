@@ -51,15 +51,18 @@ export class ApiClient {
   #databaseHealthTimeoutMs;
   #simulation;
   #apiKey = '';
+  #session;
+  #onUnauthorized;
 
   constructor({
     baseUrl = CONFIG.apiUrl, vehicleId = CONFIG.vehicleId, fetchImpl,
     timeoutMs = CONFIG.requestTimeoutMs, healthTimeoutMs = CONFIG.healthTimeoutMs,
     databaseHealthTimeoutMs = CONFIG.databaseHealthTimeoutMs,
-    simulation = false, operatorApiKey = CONFIG.operatorApiKey,
+    simulation = false, operatorApiKey = CONFIG.operatorApiKey, session = '', onUnauthorized = () => {},
   } = {}) {
     const url = new URL(baseUrl);
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    const local = url.protocol === 'http:' && url.hostname === '127.0.0.1' && url.port === '8043';
+    if ((!local && url.protocol !== 'https:') || url.username || url.password || url.search || url.hash) {
       throw new TypeError('La dirección de la API debe ser HTTPS y no incluir credenciales.');
     }
     if (!isEntityId(vehicleId)) throw new TypeError('El identificador del vehículo no es válido.');
@@ -69,7 +72,9 @@ export class ApiClient {
 
     this.#baseUrl = url.href.replace(/\/$/, '');
     this.#vehicleId = vehicleId;
-    this.#vehiclePath = `/vehiculos/${vehicleId}`;
+    this.#session = session;
+    this.#onUnauthorized = onUnauthorized;
+    this.#vehiclePath = `${session ? '/plataforma' : ''}/vehiculos/${vehicleId}`;
     this.#fetch = fetchImpl ?? globalThis.fetch.bind(globalThis);
     this.#timeoutMs = timeoutMs;
     this.#healthTimeoutMs = healthTimeoutMs;
@@ -79,7 +84,7 @@ export class ApiClient {
   }
 
   get hasApiKey() {
-    return this.#simulation || this.#apiKey.length > 0;
+    return this.#simulation || Boolean(this.#session) || this.#apiKey.length > 0;
   }
 
   setApiKey(value) {
@@ -197,7 +202,8 @@ export class ApiClient {
     decode = response => response.json(),
   }) {
     const headers = { Accept: 'application/json' };
-    if (method === 'POST') {
+    if (this.#session && path.startsWith('/plataforma/')) headers.Authorization = `Bearer ${this.#session}`;
+    if (method === 'POST' && !this.#session) {
       if (!this.hasApiKey) throw new ApiError('auth', 'Falta configurar la clave de operador en assets/js/config.js.');
       if (!this.#simulation) headers['X-API-Key'] = this.#apiKey;
     }
@@ -226,6 +232,7 @@ export class ApiClient {
         if (controller.signal.aborted || !(error instanceof SyntaxError)) throw error;
       }
       if (!response.ok) {
+        if (response.status === 401 && this.#session) this.#onUnauthorized();
         if (path === '/health/database' && response.status === 503 && data?.detail === BACKEND_DETAILS.databaseUnavailable) {
           throw new ApiError('database', 'El diagnóstico de Amazon RDS no se pudo completar.', response.status);
         }

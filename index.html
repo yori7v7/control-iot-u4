@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta name="theme-color" content="#100d10">
   <meta name="description" content="Consola de control y monitoreo del vehículo IoT.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://100-30-4-62.nip.io wss://100-30-4-62.nip.io; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https://100-30-4-62.nip.io wss://100-30-4-62.nip.io http://127.0.0.1:8043 ws://127.0.0.1:8043; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <title>Control IoT · Consola vehicular</title>
   <link rel="icon" href="./assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./assets/css/vendor/bootstrap.min.css">
   <link rel="stylesheet" href="./assets/css/app.css">
+  <link rel="stylesheet" href="./assets/css/platform43.css">
   <script type="module" src="./assets/js/app.js"></script>
 </head>
 <body>
@@ -34,8 +35,10 @@
       <nav class="view-links view-links-wide" aria-label="Vistas de la consola">
         <a href="#control" data-view="control" aria-current="page">Control</a>
         <a href="#monitoreo" data-view="monitoreo">Monitoreo</a>
+        <a href="#administracion" data-view="administracion" hidden>Administración</a>
       </nav>
       <div class="topbar-actions">
+        <a class="btn btn-quiet" id="platform-account" data-platform-link href="#cuenta" hidden>Acceso</a>
         <button class="btn btn-quiet icon-button" id="vehicle-detail-toggle" type="button" popovertarget="vehicle-detail" aria-label="Información del vehículo" title="Información del vehículo">
           <svg class="icon" aria-hidden="true"><use href="./assets/icons.svg#info"/></svg>
         </button>
@@ -78,6 +81,9 @@
     </section>
     <p class="notice deck-notice" id="notice" role="status" hidden></p>
 
+    <p class="notice platform-status" id="platform-status" role="status" hidden></p>
+    <span id="platform-time" hidden></span>
+    <section class="platform-view" id="platform-view" hidden></section>
     <div class="dashboard" id="control-view">
       <section class="drive-panel" aria-labelledby="drive-title">
         <div class="panel-heading">
@@ -220,6 +226,7 @@
     <div class="view-links view-links-compact">
       <a href="#control" data-view="control" aria-current="page">Control</a>
       <a href="#monitoreo" data-view="monitoreo">Monitoreo</a>
+        <a href="#administracion" data-view="administracion" hidden>Administración</a>
       <button class="btn btn-quiet" id="views-vehicle-detail" type="button" aria-controls="vehicle-detail">Información del vehículo</button>
     </div>
   </nav>

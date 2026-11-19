@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './regression-fixture.js';
 import axe from 'axe-core';
 import { formatCommandName } from '../js/ui/commandLabels.js';
 import { viewports } from './viewport-matrix.js';
@@ -23,9 +23,15 @@ async function isolate(page, baseURL) {
   const origin = new URL(baseURL).origin;
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.route('**/*', route => new URL(route.request().url()).origin === origin && route.request().method() === 'GET'
-    ? route.continue()
-    : route.abort());
+  await page.route('**/*', async route => {
+    const url = new URL(route.request().url());
+    if (url.origin !== origin || route.request().method() !== 'GET') return route.abort();
+    if (!url.pathname.endsWith('/assets/js/config.js')) return route.continue();
+    const response = await route.fetch();
+    const source = await response.text();
+    return route.fulfill({ response, body: source.replace(/export const OPERATOR_API_KEY\s*=\s*[^;]+;/,
+      "export const OPERATOR_API_KEY = 'fixture-responsive-local';") });
+  });
   await page.routeWebSocket('**/*', socket => socket.close());
   return errors;
 }

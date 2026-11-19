@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './regression-fixture.js';
 
 // Reproducción del Chrome 1365 x 768 de Windows: el viewport de la página
 // queda cerca de 1365 x 680 después de pestañas y barra de direcciones.

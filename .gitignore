@@ -10,6 +10,9 @@ _site/
 .env.*
 *.pem
 *.key
+Platform43Secrets.h
+*.sql
+*.sql.gz
 *.log
 *.har
 *.tmp

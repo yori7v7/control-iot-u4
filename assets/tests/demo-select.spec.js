@@ -1,4 +1,4 @@
-import { devices, expect, test } from '@playwright/test';
+import { devices, expect, test } from './regression-fixture.js';
 import { CONFIG } from '../js/config.js';
 
 const APP = '/control-iot-u4/';

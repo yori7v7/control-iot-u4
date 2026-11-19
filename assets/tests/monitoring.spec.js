@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './regression-fixture.js';
 import axe from 'axe-core';
 import { CONFIG } from '../js/config.js';
 import { viewports } from './viewport-matrix.js';
@@ -140,7 +140,13 @@ async function intercept(page, baseURL, { state = savedState(), history = [] } =
     const request = route.request();
     const url = new URL(request.url());
     const method = request.method();
-    if (url.origin === origin && method === 'GET') return route.continue();
+    if (url.origin === origin && method === 'GET') {
+      if (!url.pathname.endsWith('/assets/js/config.js')) return route.continue();
+      const response = await route.fetch();
+      const source = await response.text();
+      return route.fulfill({ response, body: source.replace(/export const OPERATOR_API_KEY\s*=\s*[^;]+;/,
+        "export const OPERATOR_API_KEY = 'fixture-lectura-local';") });
+    }
     if (url.origin !== CONFIG.apiUrl || method !== 'GET') {
       fixtures.unexpected.push(`${method} ${url.origin}${url.pathname}`);
       return route.abort();
