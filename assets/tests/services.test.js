@@ -240,15 +240,16 @@ test('WSS valida vehículo y formato, deduplica, reconecta y cierra sus recursos
   assert.equal(invalid.length, 2);
 
   sockets[0].close();
-  assert.equal(socket.state, 'reconnecting');
+  assert.equal(socket.state, 'disconnected');
   await delay(15);
+  assert.equal(socket.state, 'reconnecting');
   sockets[1].open();
   sockets[0].message(JSON.stringify({ ...frame, id_evento: 'evento-viejo' }));
   sockets[1].message(JSON.stringify(frame));
   assert.deepEqual(events, [frame]);
   socket.stop();
   assert.equal(sockets[1].readyState, 3);
-  assert.deepEqual(states, ['connecting', 'connected', 'reconnecting', 'connected', 'disconnected']);
+  assert.deepEqual(states, ['connecting', 'connected', 'disconnected', 'reconnecting', 'connected', 'disconnected']);
 });
 
 test('la simulación explícita ejercita catálogo, movimiento, DEMO completa y cancelación', async t => {

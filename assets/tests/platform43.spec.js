@@ -64,6 +64,7 @@ async function fixtures(page, user, options = {}) {
         break;
       case '/plataforma/vehiculos/2/ticket':
         acks.push(path);
+        await options.waitForTicket?.(acks.length);
         json = { ticket: 'ticket_fixture' };
         status = 201;
         break;
@@ -77,6 +78,7 @@ async function fixtures(page, user, options = {}) {
     return route.fulfill({ headers, status, contentType: 'application/json', body: JSON.stringify(json) });
   });
   await page.routeWebSocket('**/plataforma/ws/vehiculos/2', socket => {
+    options.sockets?.push(socket);
     socket.send(JSON.stringify({ tipo_evento: 'estado_actual', id_vehiculo: 2,
       timestamp: null, estado: null, comando: null, codigo: null }));
   });
@@ -153,15 +155,68 @@ async function signIn(page) {
 }
 
 test('administra en la misma aplicación y usa métricas de la API', async ({ page }) => {
-  await fixtures(page, ADMIN);
+  const sockets = [];
+  const tickets = await fixtures(page, ADMIN, { sockets });
   await signIn(page);
   await expect(page.getByRole('heading', { name: 'Administración', exact: true })).toBeVisible();
   await expect(page.getByText('Modelos activos')).toBeVisible();
   await expect(page.locator('.iot-metrics dd').first()).toHaveText('2');
+  const wss = page.locator('#ws-indicator');
+  await expect(wss.locator('strong')).toHaveText('No requerido');
+  await expect(wss).toHaveAttribute('data-tone', 'idle');
   await expect(page.getByRole('link', { name: 'Control', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Cuenta', exact: true }).click();
+  await expect(wss.locator('strong')).toHaveText('No requerido');
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page.getByRole('heading', { name: 'Acceso a la plataforma' })).toBeVisible();
+  await expect(wss).toHaveAttribute('data-tone', 'idle');
+  expect(tickets).toHaveLength(0);
+  expect(sockets).toHaveLength(0);
+});
+
+test('el indicador WSS distingue vistas sin socket, caída y reconexión', async ({ page }) => {
+  await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });
+  await page.clock.pauseAt(new Date('2030-01-01T00:00:01Z'));
+  const sockets = [];
+  const retry = Promise.withResolvers();
+  const tickets = await fixtures(page, BUYER, {
+    sockets, waitForTicket: count => count === 2 ? retry.promise : undefined,
+  });
+  const wss = page.locator('#ws-indicator');
+  await signIn(page);
+  await expect(wss.locator('strong')).toHaveText('En línea');
+  await expect(wss).toHaveAttribute('data-tone', 'good');
+
+  await page.evaluate(() => { location.hash = '#monitoreo'; });
+  await expect(page.locator('#monitor-view')).toBeVisible();
+  await expect(wss).toHaveAttribute('data-tone', 'good');
+  expect(sockets).toHaveLength(1);
+  await sockets[0].close({ code: 1011 });
+  await expect(wss.locator('strong')).toHaveText('Desconectado');
+  await expect(wss).toHaveAttribute('data-tone', 'bad');
+
+  try {
+    await page.clock.runFor(1000);
+    await expect(wss.locator('strong')).toHaveText('Reconectando');
+    await expect(wss).toHaveAttribute('data-tone', 'wait');
+  } finally {
+    retry.resolve();
+  }
+  await expect(wss).toHaveAttribute('data-tone', 'good');
+  await page.evaluate(() => { location.hash = '#control'; });
+  await expect(page.getByRole('heading', { name: 'Control manual' })).toBeVisible();
+  await expect(wss.locator('strong')).toHaveText('En línea');
+  expect(sockets).toHaveLength(2);
+
+  await page.getByRole('link', { name: 'Cuenta', exact: true }).click();
+  await expect(wss.locator('strong')).toHaveText('No requerido');
+  await expect(wss).toHaveAttribute('data-tone', 'idle');
+  await page.clock.runFor(3000);
+  expect(tickets).toHaveLength(2);
+  expect(sockets).toHaveLength(2);
+  await page.getByRole('button', { name: 'Abrir Monitoreo' }).click();
+  await expect(wss).toHaveAttribute('data-tone', 'good');
+  expect(sockets).toHaveLength(3);
 });
 
 for (const viewport of [{ width: 393, height: 852 }, { width: 852, height: 393 }]) {

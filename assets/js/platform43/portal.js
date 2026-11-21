@@ -247,7 +247,7 @@ export function portal(mount) {
       }).catch(error => report(error.message, true));
       return;
     }
-    indicators.set('ws', 'disconnected');
+    indicators.set('ws', 'not-required');
     void health.start();
     if (isAdminPanel) showAdmin(panel, api, report);
     else if (identity) accountPanel(expected);

@@ -148,7 +148,7 @@ export class WebSocketClient {
     if (connection !== this.#connection) return;
     if (connection.openedAt !== null && Date.now() - connection.openedAt >= 10000) this.#attempts = 0;
     this.#release();
-    this.#retry();
+    this.#retry(connection.openedAt === null ? 'reconnecting' : 'disconnected');
   }
 
   #release() {
@@ -160,15 +160,16 @@ export class WebSocketClient {
     if (socket.readyState < 2) socket.close();
   }
 
-  #retry() {
+  #retry(state = 'reconnecting') {
     if (!this.#running) return;
     const delay = Math.min(this.#retryBaseMs * 2 ** this.#attempts, this.#retryMaxMs);
     this.#attempts = Math.min(this.#attempts + 1, 16);
     this.#retryTimer = setTimeout(() => {
       this.#retryTimer = null;
+      this.#setState('reconnecting');
       this.#connect();
     }, delay);
-    this.#setState('reconnecting');
+    this.#setState(state);
   }
 
   #receive(data) {

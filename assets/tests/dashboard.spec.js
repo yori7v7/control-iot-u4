@@ -881,6 +881,7 @@ test('un WSS compatible tardío actualiza solo el resumen cuando ya volvió el e
 });
 
 test('los tres indicadores se actualizan de forma independiente y se recuperan', async ({ page }) => {
+  await page.clock.install();
   const fixtures = await interceptBackend(page);
   fixtures.rdsAvailable = false;
   await page.goto(APP);
@@ -891,9 +892,11 @@ test('los tres indicadores se actualizan de forma independiente y se recuperan',
   await expect(wss).toHaveText('En línea');
   await expect(api).toHaveText('Disponible');
   await expect(rds).toHaveText('No disponible');
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 500));
   fixtures.sockets.at(-1).close({ code: 1011, reason: 'Cierre de prueba' });
-  await expect(wss).toHaveText('Reconectando');
+  await expect(wss).toHaveText('Desconectado');
   await expect(api).toHaveText('Disponible');
+  await page.clock.runFor(1000);
   await expect(wss).toHaveText('En línea');
   expect(fixtures.sockets).toHaveLength(2);
 

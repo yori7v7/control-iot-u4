@@ -3,6 +3,7 @@ const STATUS = {
   connected: ['En línea', 'good'],
   reconnecting: ['Reconectando', 'wait'],
   disconnected: ['Desconectado', 'bad'],
+  'not-required': ['No requerido', 'idle'],
   checking: ['Comprobando', 'wait'],
   available: ['Disponible', 'good'],
   unavailable: ['No disponible', 'bad'],
