@@ -149,6 +149,14 @@ export class ApiClient {
     return this.#request(`${this.#vehiclePath}/comandos`, { validate: Array.isArray });
   }
 
+  getDispatch({ signal } = {}) {
+    return this.#request(`${this.#vehiclePath}/despacho`, {
+      signal,
+      validate: data => ['inhibido', 'sin_dispositivo', 'disponible_sin_ack'].includes(data?.estado) &&
+        typeof data.demo_original === 'boolean' && typeof data.demo_original_pendiente === 'boolean',
+    });
+  }
+
   getDemos() {
     return this.#request(`${this.#vehiclePath}/demos`, { validate: Array.isArray });
   }

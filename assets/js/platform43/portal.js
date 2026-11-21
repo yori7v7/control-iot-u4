@@ -145,14 +145,16 @@ export function portal(mount) {
   }
 
   function accountPanel(expected) {
-    const editor = el('div');
+    const editorContent = el('div');
+    const editor = el('div', {}, button('Volver a vehículos', () => show(workspace), true), editorContent);
+    let editorRequest = 0;
     const unitSelection = select('vehiculo', units.map(unit => [unit.id_vehiculo, unit.nombre]), vehicle);
     unitSelection.onchange = () => {
       vehicle = Number(unitSelection.value);
-      editor.replaceChildren();
+      editorContent.replaceChildren();
     };
     const profile = section(identity.rol === 'invitado' ? 'Sesión de exhibición' : 'Mi cuenta',
-      el('p', {}, identity.nombre), button('Cerrar sesión', () => void signOut(), true));
+      el('p', {}, identity.nombre));
     if (identity.rol !== 'invitado') {
       profile.append(form('Cambiar contraseña', [
         field('Contraseña actual', input('actual', 'password', '', { required: true, maxLength: 128, autocomplete: 'current-password' })),
@@ -164,28 +166,42 @@ export function portal(mount) {
     }
     const workspace = section(identity.rol === 'invitado' ? 'Unidad de exhibición' : 'Mis vehículos',
       units.length ? field('Vehículo', unitSelection) : el('p', {}, 'Sin vehículos asignados.'),
-      units.length ? el('div', { class: 'iot-actions' },
+      units.length ? el('div', { class: 'iot-actions iot-vehicle-actions' },
         button('Abrir Control', () => { location.hash = '#control'; }),
         button('Abrir Monitoreo', () => { location.hash = '#monitoreo'; }, true),
-        identity.rol === 'usuario' ? button('Mis DEMOS', () => void loadEditor(), true) : null) : null,
-      editor);
-    panel.replaceChildren(el('h2', { tabIndex: -1 }, 'Cuenta y vehículos'), el('div', { class: 'iot-columns' }, profile, workspace));
+        identity.rol === 'usuario' ? button('Mis DEMOS', () => void loadEditor(), true) : null) : null);
+    const tabs = el('nav', { class: 'iot-actions iot-account-nav', 'aria-label': 'Secciones de cuenta' },
+      identity.rol !== 'administrador' ? button('Vehículos', () => show(workspace), true) : null,
+      button('Perfil', () => show(profile), true), button('Cerrar sesión', () => void signOut(), true));
+    const show = (selected, focus = true) => {
+      for (const surface of [workspace, profile, editor]) surface.hidden = surface !== selected;
+      if (focus) {
+        const target = selected.querySelector('h3, button');
+        if (target) { target.tabIndex = 0; target.focus(); }
+      }
+    };
+    panel.replaceChildren(el('h2', { tabIndex: -1 }, 'Cuenta y vehículos'), tabs, workspace, profile, editor);
+    show(identity.rol === 'administrador' ? profile : workspace, false);
 
     async function loadEditor(selected) {
       const target = vehicle;
       const base = `/vehiculos/${target}/demos/privadas`;
-      editor.replaceChildren(el('p', { role: 'status' }, 'Cargando DEMOS…'));
+      const requested = ++editorRequest;
+      show(editor);
+      editorContent.replaceChildren(el('p', { role: 'status' }, 'Cargando DEMOS…'));
       try {
         const [demos, commands] = await Promise.all([api(base), api(`/vehiculos/${target}/comandos`)]);
-        if (expected !== generation || vehicle !== target) return;
+        if (expected !== generation || vehicle !== target || requested !== editorRequest) return;
         const view = demoEditor({
           demos, commands, report, reload: loadEditor,
           save: (id, body) => api(id ? `${base}/${id}` : base, { method: id ? 'PUT' : 'POST', body }),
         });
         if (selected) view.select(selected);
-        editor.replaceChildren(view.node);
+        editorContent.replaceChildren(view.node);
       } catch (error) {
-        if (expected === generation && vehicle === target) editor.replaceChildren(el('p', { role: 'alert' }, error.message));
+        if (expected === generation && vehicle === target && requested === editorRequest) {
+          editorContent.replaceChildren(el('p', { role: 'alert' }, error.message));
+        }
       }
     }
   }

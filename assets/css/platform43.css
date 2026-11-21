@@ -1,12 +1,19 @@
 .platform43 .platform-status { margin-block: .75rem; }
 .platform-status[data-error="true"] { border-color: var(--accent, #f45e68); }
 .platform43:not(.platform-ops) :is(.vehicle-context, #vehicle-detail-toggle, #stop) { display: none; }
-.platform43:not(.platform-ops) { overflow: auto; }
-.platform43:not(.platform-ops) .main-shell { display: block; }
+.platform43:not(.platform-ops) { height: 100dvh; min-height: 0; }
+.platform43:not(.platform-ops) .main-shell { flex: 1 1 0; min-height: 0; }
+.platform43:not(.platform-ops) .platform-view {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
 .platform43 [hidden] { display: none !important; }
-.platform-view { padding-block: clamp(.8rem, 4vw, 3rem); }
-.platform-view h2 { font-size: clamp(1.6rem, 3vw, 2.4rem); margin-bottom: 1rem; }
-.iot-section { padding-block: 1rem; border-top: 1px solid #52313a; }
+.platform-view { padding-block: clamp(.35rem, 1.5dvh, 1rem); padding-inline-end: .35rem; }
+.platform-view h2 { font-size: clamp(1.4rem, 3vw, 2.1rem); margin-bottom: .65rem; }
+.iot-section { padding-block: clamp(.5rem, 1.5dvh, 1rem); border-top: 1px solid #52313a; min-width: 0; }
 .iot-section h3 { font-size: 1.15rem; margin-bottom: .85rem; }
 .iot-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(1rem, 4vw, 3rem); }
 .iot-form { display: grid; align-content: start; gap: .75rem; margin-block: .75rem; }
@@ -15,6 +22,9 @@
 .iot-field:has(input[type="checkbox"]) { flex-direction: row; align-items: center; justify-content: space-between; }
 .iot-field .form-check-input { flex: none; }
 .iot-actions, .iot-list li { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+.iot-vehicle-actions { margin-block-start: 1rem; padding-block-start: .8rem; border-top: 1px solid #52313a; }
+.iot-account-nav { margin-block-end: .65rem; }
+.iot-steps { display: grid; gap: .3rem; }
 .iot-list { list-style: none; padding-inline-start: 0; margin-top: .6rem; }
 .iot-list li { padding-block: .6rem; border-bottom: 1px solid #52313a; overflow-wrap: anywhere; }
 .iot-list li > :is(p, ul) { flex-basis: 100%; }
@@ -34,4 +44,11 @@
   .platform43 .view-links-wide { display: none; }
   .platform43 #views-toggle { display: inline-flex; }
 
+}
+
+@media (orientation: landscape) and (max-height: 450px) {
+  .platform43:not(.platform-ops) { --gap: 5px; }
+  .platform-view h2 { font-size: 1.23rem; }
+  .iot-section h3 { margin-bottom: .45rem; }
+  .iot-form { margin-block: .35rem; gap: .45rem; }
 }

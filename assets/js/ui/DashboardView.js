@@ -177,16 +177,27 @@ export class DashboardView {
     this.#pressAnimations.set(graphic, graphic.animate(frames, { duration, easing: 'ease-out' }));
   }
 
-  setControl({ armed, canCommand, canStop, catalogReady, catalogStatus }) {
+  setControl({ armed, canCommand, canStop, catalogReady, catalogStatus, platform, dispatch }) {
     const mode = this.element('control-mode');
-    setText(mode, !armed ? 'Falta configurar clave' : catalogStatus || (canStop ? 'HABILITADO' : 'BLOQUEADO'));
-    mode.title = !armed ? 'Falta configurar la clave de operador en assets/js/config.js.' : '';
-    mode.dataset.armed = String(canStop);
+    const physical = dispatch?.demo_original_pendiente ? 'DEMO Q6 · CLAXON' : ({
+      inhibido: 'LÓGICO · INHIBIDO', sin_dispositivo: 'LÓGICO · SIN EQUIPO',
+      disponible_sin_ack: 'DESPACHO SIN ACK',
+    })[dispatch?.estado] || 'LÓGICO · SIN VERIFICAR';
+    setText(mode, !armed ? (platform ? 'Sesión requerida' : 'Falta configurar clave')
+      : catalogStatus || (canStop ? (platform ? physical : 'HABILITADO') : 'BLOQUEADO'));
+    mode.title = platform ? (dispatch?.demo_original_pendiente
+      ? 'Claxon solicita la interrupción. DETENER no interrumpe la DEMO original.'
+      : 'La aceptación HTTP y WSS no confirma actuación física.')
+      : !armed ? 'Falta configurar la clave de operador en assets/js/config.js.' : '';
+    mode.dataset.armed = String(canStop && (!platform || physical === 'DESPACHO SIN ACK'));
     mode.toggleAttribute('data-catalog-status', !armed || Boolean(catalogStatus));
     this.element('stop').disabled = !canStop;
     this.element('joystick').setAttribute('aria-disabled', String(!CARDINAL_DIRECTIONS.some(canCommand)));
     for (const button of this.#document.querySelectorAll('[data-command]')) {
       button.disabled = !catalogReady || !canCommand(button.dataset.command);
+      if (platform && button.dataset.command === 'DEMO_ORIGINAL') {
+        button.title = 'DEMO independiente. Se interrumpe con CLAXON.';
+      }
     }
   }
 

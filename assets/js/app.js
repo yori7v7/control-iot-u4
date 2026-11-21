@@ -41,10 +41,16 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
   let wsConnected = false;
   let apiWasUnavailable = false;
   let currentView = null;
+  const platform = Boolean(apiOptions.session);
+  let dispatch = null;
+  let dispatchRequest;
 
   const canControl = () => api.hasApiKey && vehicle?.active === true;
   const canStop = () => canControl() && Boolean(commands.getCommand('DETENER'));
-  const canCommand = key => catalogVerified && !apiWasUnavailable && canStop() && !demo.busy && !commands.stopping && Boolean(commands.getCommand(key));
+  const canCommand = key => catalogVerified && !apiWasUnavailable && canStop() && !demo.busy && !commands.stopping &&
+    Boolean(commands.getCommand(key)) && (!platform ||
+      (dispatch?.demo_original_pendiente ? key === 'CLAXON' : key !== 'DEMO_ORIGINAL' ||
+        (dispatch?.demo_original === true && wsConnected && !commands.busy && !commands.mayBeMoving)));
   const controlBusy = () => commands.busy || demo.busy;
   const commands = new CommandService({
     api, vehicleId, canControl,
@@ -55,7 +61,7 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
   });
   const demo = new DemoController({
     api, vehicleId, canControl,
-    canStart: () => canStop() && wsConnected && !commands.busy && !commands.mayBeMoving,
+    canStart: () => canStop() && wsConnected && !commands.busy && !commands.mayBeMoving && !dispatch?.demo_original_pendiente,
     onChange: render,
   });
   const joystick = new JoystickController({
@@ -90,6 +96,7 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
       wsConnected = state === 'connected';
       demo.setConnected(wsConnected);
       monitoring?.setConnected(wsConnected);
+      if (wsConnected) void loadDispatch();
       render();
     },
     onEvent(event) {
@@ -97,6 +104,7 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
       commands.handleEvent(event);
       demo.handleEvent(event);
       monitoring?.handleEvent(event);
+      if (event.tipo_evento === 'movimiento' && [64, 128].includes(event.codigo)) void loadDispatch();
     },
     onInvalid: message => view.setNotice(message, true),
   });
@@ -109,10 +117,10 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
         : !catalog.some(command => command.active && command.key !== 'DETENER') ? 'Sin comandos activos' : '';
     view.setVehicle(vehicle, vehicleId, loading);
     monitoringView.setVehicle(vehicle, loading);
-    view.setCatalog(catalog, key => commands.request(key));
+    view.setCatalog(catalog, key => canCommand(key) && commands.request(key));
     view.setControl({
       armed: api.hasApiKey, canCommand, canStop: canStop(),
-      catalogReady, catalogStatus,
+      catalogReady, catalogStatus, platform, dispatch,
     });
     const inMonitoring = currentView === 'monitoreo';
     const demoState = demo.state;
@@ -121,10 +129,26 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
     view.setDemo(demoState, {
       loading, busy: demo.busy,
       canStart: demo.busy ? null
-        : !canStop() ? 'Verifica la configuración de operador y que DETENER esté disponible para iniciar.'
-          : !wsConnected ? 'Espera la conexión WSS para observar el progreso.'
+        : !canStop() ? (platform ? 'Verifica tu sesión y que DETENER esté disponible.'
+          : 'Verifica la configuración de operador y que DETENER esté disponible para iniciar.')
+          : dispatch?.demo_original_pendiente ? 'Interrumpe la DEMO original con CLAXON antes de iniciar otra.'
+            : !wsConnected ? 'Espera la conexión WSS para observar el progreso.'
             : commands.mayBeMoving ? 'Pulsa DETENER antes de iniciar una DEMO.' : null,
     });
+  }
+
+  function loadDispatch() {
+    if (!platform || signal?.aborted) return;
+    if (!dispatchRequest) {
+      dispatchRequest = api.getDispatch({ signal }).then(status => {
+        const readyChanged = status.demo_original !== (dispatch?.demo_original === true);
+        dispatch = status;
+        if (readyChanged) void Promise.resolve(refreshing).then(() => { if (!signal?.aborted) void loadCatalog(); });
+      })
+        .catch(() => { dispatch = null; })
+        .finally(() => { dispatchRequest = null; render(); });
+    }
+    return dispatchRequest;
   }
 
   function loadCatalog() {
@@ -172,7 +196,7 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
     const button = view.element('refresh');
     button.disabled = true;
     try {
-      await Promise.all([connection.refresh(), loadCatalog(), !simulation && currentView === 'monitoreo' && monitoring.refresh()]);
+      await Promise.all([connection.refresh(), loadCatalog(), loadDispatch(), !simulation && currentView === 'monitoreo' && monitoring.refresh()]);
     } finally {
       button.disabled = false;
     }
@@ -249,6 +273,7 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
     void loadCatalog();
   }, listeners);
   signal?.addEventListener('abort', () => {
+    clearInterval(dispatchTimer);
     joystick.destroy();
     if (commands.mayBeMoving || demo.busy) commands.stop();
     monitoring.deactivate();
@@ -257,6 +282,8 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
   }, { once: true });
   view.setSimulation(simulation, ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname));
   if (simulation) monitoringView.showSimulation();
+  const dispatchTimer = platform ? setInterval(loadDispatch, 3000) : null;
+  void loadDispatch();
   selectView();
   socket.start();
   void connection.start();
