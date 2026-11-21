@@ -1,168 +1,44 @@
-# Control IoT · Plataforma 4.3
+# Control IoT · Actividad 4.3
 
-[Guía de la plataforma 4.3 y pruebas locales](docs/4.3/README.md). La rama de actividad integra Administración, Control y Monitoreo. La activación del backend 4.3 precede a la publicación del frontend en GitHub Pages.
+Portal web de **Administración, Control y Monitoreo** para el proyecto IoT de la grúa RC HJ2025-1D. La versión publicada incorpora inventario, asignaciones, sesiones por rol, exhibición temporal, DEMOS privadas y de fábrica, reservas y auditoría.
 
-## Referencia de las prácticas 4.1 y 4.2
+[Abrir el portal en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Guía 4.3](docs/4.3/README.md) · [Repositorio del backend](https://github.com/yori7v7/vehiculo_iot_api_dev) · [Swagger de producción](https://100-30-4-62.nip.io/docs)
 
-Consola web para operar y monitorear el vehículo IoT ID 1. **CONTROL** reúne el joystick, los comandos y las demostraciones de la práctica 4.1. **MONITOREO** presenta el estado y el historial persistidos para la práctica 4.2. Ambas vistas comparten el backend FastAPI en AWS, el cliente HTTPS y una suscripción WSS. La interfaz usa HTML semántico, Bootstrap 5.3.8 local y clases JavaScript con módulos nativos.
+## Acceso y uso
 
-[Abrir Control IoT en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Repositorio del frontend](https://github.com/yori7v7/control-iot-u4)
-
-La integración definitiva de CONTROL directo está preparada únicamente en local: **44 pruebas unitarias y 83 de Chrome aprobadas**. Conserva los ajustes responsive del main y la clave automática de operador. [Archivos, validación y límites de esta integración](assets/docs/integracion-publicacion-4-2.md). Esta integración todavía no se ha publicado.
-
-Premium Dashboard 2.0 parte del estado validado en `e0b4121`. [Estado previo al rediseño](https://github.com/yori7v7/control-iot-u4/commit/e0b4121b028c0e8df91f14238ee1ad7265f05e85) · [Ampliación de ocho direcciones](https://github.com/yori7v7/control-iot-u4/commit/e692f9e579f43b96a32cc86dd1aef598cf52984e) · [Entrega inicial](https://github.com/yori7v7/control-iot-u4/commit/5f341e66da2650e0f4fa6cdba3f7a21c41975611)
-
-**Autor** · Diego Yorel Castelán Silva, Ingeniería en Sistemas Computacionales  
-**Institución** · Tecnológico Nacional de México — Instituto Tecnológico de Pachuca  
-**Asignatura** · Implementación de Soluciones I · Pinedo Fernández Víctor Manuel · 2026
-
-## Inicio local
-
-Se requiere Node.js 22 o posterior para el servidor y las pruebas. Desde la raíz del repositorio, `npm start` ejecuta `assets/tests/serve.js`. Para abrir la simulación no hace falta instalar dependencias.
-
-```sh
-npm start
-```
-
-Abre [la simulación local](http://127.0.0.1:4173/control-iot-u4/?modo=simulacion). La banda «Simulación local» identifica las respuestas y los eventos de prueba, generados en memoria. Los controles se pueden usar en este modo sin introducir una clave. El servidor local imita la ruta de GitHub Pages y sirve el HTML, los estilos, los módulos y los dos SVG de la aplicación.
-
-La [vista local por defecto](http://127.0.0.1:4173/control-iot-u4/) apunta a la API real. La compatibilidad CORS de esa API se debe verificar desde `https://yori7v7.github.io`. La simulación funciona sin conectarse a AWS y evita depender de CORS durante el desarrollo.
-
-## Navegación y uso
-
-La ruta base abre **Control**. Usa los enlaces de la cabecera o el botón **Vistas** en pantallas compactas. El fragmento `#monitoreo` abre directamente **Monitoreo**. El cambio de vista ocurre dentro de la misma página y conserva el ciclo de vida de la sesión y del socket.
-
-### Control
-
-1. Abre **CONTROL** directamente. La clave de operador ya configurada en `assets/js/config.js` se aplica automáticamente mediante `X-API-Key` solo a los POST protegidos. No hay formularios, turnos, roles ni aprobaciones. Una orden puede activar el vehículo.
-2. Usa el joystick con el dedo, el ratón o las flechas cuando tiene foco. Al volver al centro o soltar se solicita DETENER. Los ocho botones de la cruceta envían órdenes individuales y **DETENER** las interrumpe. Las diagonales y otros comandos se habilitan según el catálogo activo.
-3. Selecciona una DEMO y abre **Detalle de DEMO** para consultar **Movimientos programados**. **Ejecutar** envía la petición al backend y el panel actualiza el avance con los eventos WSS recibidos. **Cancelar** interrumpe la secuencia con su endpoint dedicado. **DETENER** intenta cancelar una DEMO activa conocida antes de enviar la orden de parada.
-4. Revisa el estado de la orden y los indicadores de conectividad. CONTROL presenta la solicitud REST, el evento WSS compatible cuando se observa y los errores operativos en la vista principal. **Actualizar conexión y catálogos** repite las lecturas. La DEMO programada mantiene ejecución y cancelación; **Demostración original** utiliza `DEMO_ORIGINAL` (ID 10, código 64) cuando está activa en el catálogo y el control está habilitado.
-
-Al finalizar normalmente o tras aceptar por HTTP un DETENER posterior a la cancelación, el panel conserva el resultado visible unos cuatro segundos. Luego vuelve a «Sin DEMO en ejecución», mantiene la selección y guarda la evidencia disponible en **Último resultado**. Si DETENER falla o agota el plazo, permanece el aviso.
-
-CONTROL y MONITOREO abren para cualquier visitante en la misma interfaz. GET y WSS no envían la clave. Los controles dependen del vehículo y catálogo disponibles; iniciar la DEMO programada requiere WSS para observar su progreso.
-
-### Monitoreo
-
-La vista abre sin clave. Al entrar consulta `GET /vehiculos/1/estado` y `GET /vehiculos/1/historial`. El estado puede ser `null`. El historial puede estar vacío y muestra hasta diez filas persistidas en el orden del servidor. Las fechas sin zona conservan la hora reportada y las filas mantienen su origen y el identificador de historial exacto.
-
-Los eventos de `WSS /ws/vehiculos/1` actualizan el reporte observado y solicitan una reconciliación. Un movimiento individual activa la lectura de estado e historial. Un paso de DEMO actualiza el estado y queda fuera de la tabla. La reconexión y **Actualizar monitoreo** recargan ambos recursos. Las lecturas se agrupan ante ráfagas, se descartan resultados obsoletos y la última tabla válida sigue visible durante fallos transitorios. El historial se actualiza por eventos y por demanda.
-
-La tarjeta distingue el evento recibido del estado confirmado por REST. El estado persistido, WSS y `conectado` describen evidencia del backend y carecen de acuse físico del actuador. En simulación, MONITOREO indica que el historial real está disponible en el modo conectado.
-
-El indicador **DEMO programada** usa el WSS compartido al cambiar de vista. Un paso aislado acredita el movimiento observado. Tras perder WSS, una ejecución previa queda sin confirmar hasta que llegue evidencia nueva.
-
-## Premium Dashboard 2.0
-
-La consola de grafito y rojo reúne el joystick circular de ocho direcciones, una cruceta de botones y los comandos auxiliares. La cabecera mantiene **DETENER** y la barra muestra WSS, API y RDS por separado. El rediseño conserva los IDs dinámicos del catálogo, la prioridad de DETENER y la lógica de los controladores y transportes. La simulación local sigue funcionando sin red.
-
-- En vertical con poca altura, joystick y cruceta comparten una fila. Con más altura, el joystick ocupa una fila propia y la cruceta comparte espacio con los comandos auxiliares.
-- En horizontal compacto, el control manual ocupa la zona izquierda y la DEMO la derecha. CONTROL conserva la confirmación REST y WSS en línea tras retirar el botón y panel **Diagnóstico**. Los paneles de DEMO y vehículo conservan los pasos, el último resultado y los créditos. El aviso **Pulsa Detener** permanece visible mientras esté pendiente una parada posterior a la cancelación.
-- Las direcciones responden con una pulsación breve. Luces usa un destello, Velocidad un giro, Claxon una vibración visual y Demostración original un pulso del icono. El efecto indica interacción local, se reinicia al repetir la pulsación y respeta la preferencia de movimiento reducido. Las luces y los tres modos de velocidad carecen de telemetría en el backend, por lo que la interfaz no estima ni conserva un estado físico. [Firmware de referencia](https://github.com/yori7v7/vehiculo_iot_api_dev/blob/3c26b3aa50ad21c6802cdb89b10aa6fdec0b217d/firmware/Excavadora_IoT_AWS/Excavadora_IoT_AWS.ino#L217-L239)
-- MONITOREO apila el reporte y el historial en teléfono vertical. En horizontal y pantallas amplias los presenta lado a lado. La tabla pagina según el espacio disponible para conservar los diez registros sin scroll interno. **Anterior** y **Siguiente** funcionan con teclado y tacto. La primera página sigue las novedades. Al consultar páginas anteriores, la vista mantiene la referencia al primer ID que siga disponible y avisa que hay movimientos más recientes.
-- El layout reserva las áreas seguras del navegador. Los paneles de detalle pueden desplazarse internamente si el contenido crece. Fuera de la matriz, un viewport muy reducido o con zoom puede requerir desplazamiento para conservar la legibilidad y los controles táctiles.
-
-La validación de Premium Dashboard 2.0 aprobó **27 pruebas de Node y 38 de Chrome**. La suite responsive verificó cero desplazamiento horizontal y vertical, ausencia de solapamientos y áreas de al menos 44 × 44 px CSS en los botones de movimiento, DETENER y controles de DEMO de los 18 tamaños siguientes.
-
-| Grupo | Viewports de prueba en px CSS |
+| Rol | Cómo entrar y qué puede hacer |
 | --- | --- |
-| Teléfonos en vertical | 320 × 568, 360 × 640, 375 × 667, 390 × 844, 414 × 896, 430 × 932 |
-| Teléfonos en horizontal | 568 × 320, 640 × 360, 667 × 375, 740 × 360, 844 × 390, 896 × 414, 932 × 430 |
-| Tabletas y escritorio | 768 × 1024, 1024 × 768, 1280 × 720, 1366 × 768, 1920 × 1080 |
+| Administrador | Abre **Acceso** e inicia sesión con la cuenta administrativa (ID 1). En **Administración** puedes gestionar clientes, modelos, capacidades, inventario, asignaciones, DEMOS de fábrica y reservas, y consultar la auditoría. |
+| Comprador | En **Acceso**, inicia sesión con tu cuenta y abre **Cuenta → Mis vehículos**. El comprador ID 2 tiene asignada la unidad física ID 1, serie `RC-IOT-001`. Selecciónala para usar **Control**, consultar **Monitoreo** o gestionar tus DEMOS privadas. |
+| Invitado | Abre **Acceso** y solicita la unidad de exhibición disponible ID 4, serie `EXH-LOGICA-43`. La reserva es exclusiva, dura 120 segundos y puede expirar o revocarse. **Control** muestra **DETENER** (código 0) y **AVANZAR** (código 1). Los eventos de la sesión corresponden a una unidad lógica sin ESP8266 ni actuación física. |
 
-Playwright ejecuta Chrome en escritorio y emula los tamaños móviles y la reducción de altura al abrir el teclado. Las particularidades del teclado virtual, las barras del navegador y las áreas seguras dependen del dispositivo y requieren comprobación en un teléfono físico.
+### Control del comprador
 
-## Arquitectura POO
+1. Selecciona la unidad 1 y abre **Control**. Comprueba el estado de API, RDS, WSS del navegador y despacho de la unidad.
+2. Usa el joystick o la cruceta para las ocho direcciones. El joystick solicita **DETENER** al regresar al centro o soltarlo. También están disponibles **Luces**, **Velocidad**, **Claxon** y el botón **Detener**.
+3. Para una **DEMO programada**, consulta los pasos, elige **Ejecutar** y observa el avance. Usa **Cancelar** para interrumpir la secuencia gestionada por el servidor.
+4. **Demostración original** inicia `DEMO_ORIGINAL` (código 64) con el enlace físico compatible disponible. La interrupción física comprobada se realiza con **Claxon** (código 128). **Detener** (código 0) libera las salidas del ESP8266 y por sí solo no garantiza interrumpir esa secuencia autónoma.
+5. Abre **Monitoreo** para consultar el último estado, los eventos observados y hasta diez movimientos individuales del alcance autorizado. Cierra la sesión desde **Cuenta**.
 
-| Ubicación | Clases y responsabilidades |
+## Arquitectura y POO
+
+GitHub Pages sirve HTML, CSS y JavaScript ES6. El navegador usa HTTPS con FastAPI en EC2 y un canal WSS de eventos. FastAPI aplica permisos y persiste en Amazon RDS MySQL. El equipo físico recibe órdenes por un canal WSS separado. La única grúa física integra un ESP8266 NodeMCU, un 74HC595 y ocho PC817.
+
+| Capa del navegador | Responsabilidad |
 | --- | --- |
-| `assets/js/models/` | `Vehicle`, `Command` y `Demo` validan datos del dominio. `VehicleState` y `MovementHistoryEntry` validan las lecturas de monitoreo. |
-| `assets/js/services/` | `ApiClient` centraliza Fetch, autenticación, validación, timeouts y errores. `WebSocketClient` mantiene una suscripción de lectura, valida tramas, deduplica y reconecta con espera creciente. `ConnectionService` comprueba API y RDS por separado. |
-| `assets/js/controllers/` | `JoystickController` gestiona puntero y teclado. `CommandService` serializa los POST y prioriza DETENER. `DemoController` coordina las demostraciones. `MonitoringController` agrupa lecturas e invalida datos con WSS. |
-| `assets/js/ui/` | `DashboardView` presenta CONTROL. `MonitoringView` presenta estado, evento e historial. `ConnectionIndicators` representa los tres canales. `commandLabels.js` traduce los nombres únicamente al presentarlos. |
-| `assets/js/app.js` y `assets/js/config.js` | El punto de entrada instancia y conecta los objetos. La configuración contiene URLs, ID y tiempos de espera. |
-| `assets/css/` y `assets/` | Estilos, Bootstrap y su licencia, favicon y sprite SVG. |
-| `assets/tests/` y `assets/docs/` | Servidor local, suites de prueba y documentación técnica. |
+| Modelos | `Vehicle`, `Command`, `Demo`, `VehicleState` y `MovementHistoryEntry` validan los datos de dominio. |
+| Servicios | `ApiClient` y `WebSocketClient` gestionan solicitudes, eventos y reconexión. El cliente 4.3 añade sesión y ticket de un solo uso para cada conexión WSS. |
+| Controladores | `JoystickController` procesa puntero y teclado, `CommandService` coordina órdenes, `DemoController` gestiona secuencias y `MonitoringController` concilia eventos y lecturas. |
+| Vistas | `DashboardView`, `MonitoringView` e indicadores presentan los resultados. Los módulos del portal 4.3 gestionan Acceso, Cuenta, edición de DEMOS y Administración. |
 
-```text
-Joystick y botones → CommandService ─┐
-Selección y acciones → DemoController ├→ ApiClient → HTTPS → FastAPI → RDS
-MonitoringView ← MonitoringController┤
-ConnectionService ────────────────────┘
-CONTROL y MONITOREO ← WebSocketClient ← WSS ← FastAPI
-```
+El bearer 4.3 vive en memoria. El backend comprueba rol y alcance por unidad. HTTP, los eventos WSS y el indicador de despacho reflejan evidencia de software. La confirmación de actuación de la grúa requiere observación física.
 
-El joystick y los botones envían el `id_comando` entregado por la API. La cola mantiene como máximo una orden manual en curso y una intención pendiente. DETENER debe estar activo y tener código lógico 0. Sustituye una dirección pendiente y espera la orden que ya se despachó. La vista conserva la intención más reciente aunque llegue antes una respuesta anterior. El cliente no reintenta automáticamente POST.
+## Pruebas y versiones
 
-El backend intenta emitir `movimiento` antes de responder HTTP 200. El panel compara vehículo, ID, nombre, código, origen, estado y marca de tiempo presentes en ambas respuestas. Muestra una coincidencia única como **compatible**, ya que el UUID de WSS no existe en HTTP y otros clientes pueden generar eventos iguales. Los estados de conectividad se actualizan con la apertura real de WSS, `GET /` y `GET /health/database`. Cuando falla la comunicación con la API de salud de RDS, el estado es «Sin verificar». Una respuesta específica del backend sobre fallo de RDS se muestra como «No disponible».
+- El propietario confirmó el uso en PC y teléfono en vertical y horizontal, el control físico del comprador y la interrupción de la DEMO original con Claxon.
+- Las pruebas locales de JavaScript y Chrome usan simulación o peticiones interceptadas. La integración contra un backend MySQL aislado tiene una ejecución separada. Consulta los comandos y los límites de la evidencia en la [guía 4.3](docs/4.3/README.md).
+- Las prácticas 4.1 y 4.2 quedan como antecedente del joystick, las DEMOS y el monitoreo. El acceso directo con API key y las rutas sin sesión descritos allí pertenecen al laboratorio histórico. [Documentación histórica 4.1/4.2](assets/docs/) · [Portada de la última restauración 4.2](https://github.com/yori7v7/control-iot-u4/blob/ff9eda1518f92de361f6c3bc3f8f348a94b2de2b/README.md).
 
-Las sondas de salud se ejecutan en paralelo. La API tiene un límite de 6 segundos y RDS uno de 9 segundos. La interfaz exige WSS para iniciar una DEMO y observar el progreso. Los movimientos manuales y las solicitudes de DETENER y cancelar se transmiten por REST. La línea REST de la DEMO distingue la solicitud enviada y el estado HTTP. El progreso WSS se presenta por separado, incluso si un evento llega primero. [Auditoría de los contratos](./assets/docs/contratos.md)
+La aplicación 4.3 publicada se identificó en `421b65a`. La revisión de documentación de esta entrega conserva los archivos de la aplicación.
 
-## Seguridad y límites
-
-- MONITOREO usa GET y WSS públicos. CONTROL utiliza exclusivamente la clave de operador separada de la administrativa, ya autorizada en el backend. No consulta rutas administrativas ni servicios de turnos.
-- La constante de operador del frontend será pública al publicar el sitio. Se añade únicamente a los tres POST protegidos (movimientos, ejecutar y cancelar DEMO). No se almacena en cookies ni almacenamiento del navegador. Los errores visibles usan mensajes definidos por el cliente.
-- Las pruebas automatizadas usan claves ficticias y transportes simulados o interceptados. No se imprimen credenciales ni se envían POST reales. No incluyas encabezados sensibles en evidencia académica.
-- HTTP y WSS comprueban actividad del backend. Un timeout puede ocurrir después de que el servidor reciba una orden. Cerrar la página o cancelar Fetch no confirma una parada física. Una DEMO iniciada desde otro cliente durante una desconexión puede quedar fuera del estado observado por este panel.
-- La cancelación dedicada de DEMO y la orden DETENER cumplen funciones diferentes. Un fallo al cancelar deja el estado de ejecución incierto aunque se intente enviar DETENER.
-
-## Pruebas
-
-```sh
-npm ci
-npm test
-npm run test:browser
-```
-
-La suite de navegador usa Google Chrome instalado. El [reporte de pruebas](./assets/docs/pruebas.md) describe las comprobaciones locales con simulación y tráfico interceptado. La [auditoría real de solo lectura](./assets/docs/validacion-real.md) documenta las respuestas observadas en AWS, los pasos de la DEMO y la evidencia de CORS y WSS en Chrome. Ninguna suite del frontend requiere una clave administrativa.
-
-La etapa 2 de la práctica 4.2 pasó **40 pruebas de Node y 50 de Chrome**. La regresión de CONTROL cubre los 18 tamaños de la matriz. Las pruebas nuevas de MONITOREO incluyen Chrome con emulación táctil de 320 × 568 y 568 × 320, navegación por teclado y los recursos bajo la ruta de Pages.
-
-En la etapa 3, la vista previa de la rama bajo el origen de GitHub Pages abrió MONITOREO sin clave, consultó diez movimientos reales en RDS y reconcilió el estado y el historial tras reconectar WSS. Pasaron **40 pruebas de Node y 51 de Chrome**, incluida la regresión de Detener tras un error de ejecución de DEMO. Tras integrar el PR #3, el propietario confirmó que los movimientos enviados desde CONTROL en laptop y teléfono se reflejan en MONITOREO del otro dispositivo. [Validación real de la etapa 3](./assets/docs/pruebas.md#etapa-3--validaci%C3%B3n-real-de-aws-previa-al-merge)
-
-La rama de la etapa 4 aprobó **40 pruebas de Node y 72 de Chrome**. Ambas vistas pasaron las 18 resoluciones, con comprobación de paginación, teclado, áreas seguras y movimiento reducido. [Resultados de la etapa 4](./assets/docs/pruebas.md#etapa-4--interfaz-y-paginaci%C3%B3n-adaptativa)
-
-La revisión previa al despliegue aprobó 21 pruebas de Node y 6 de Chrome. En la versión original entregada pasaron **24 pruebas de Node y 13 de Chrome**; tras ampliar el joystick a ocho direcciones, Codex reportó **27 pruebas de Node y 15 de Chrome** aprobadas, con simulación y tráfico interceptado.
-
-El propietario confirmó desde GitHub Pages la conexión con AWS real, los tres indicadores, los comandos y botones con HTTP 200, las cuatro direcciones del joystick, DETENER por REST y WSS, la finalización y cancelación de la DEMO, y DETENER posterior por HTTP 200 y WSS. Las pruebas anteriores de Swagger y WSS corresponden al backend. [Resultados finales y protocolo de validación](./assets/docs/validacion-funcional.md)
-
-Para ensayar el observador sin red, ejecuta `node assets/tests/observe-wss.js --simulacion`.
-
-El [registro del rediseño visual](./assets/docs/redisenio-visual.md) documenta la identidad, el respaldo de Git y la verificación local en diferentes tamaños de pantalla.
-
-## Ampliación posterior a la entrega: ocho direcciones (09/11/2026)
-
-El joystick interpreta ocho sectores, con cuatro movimientos cardinales y cuatro diagonales. Al soltar, regresar a la zona neutral o perder la captura, solicita DETENER; no es un mando analógico de velocidad o giro proporcional. Si falta una diagonal activa en el catálogo, utiliza el cardinal dominante.
-
-| Dirección | Comando | `id_comando` en RDS | Código 74HC595 |
-| --- | --- | ---: | ---: |
-| ↑ | `AVANZAR` | 2 | 1 |
-| ↗ | `AVANZAR_DERECHA` | 7 | 9 |
-| → | `DERECHA` | 6 | 8 |
-| ↘ | `RETROCEDER_DERECHA` | **17** | **10** |
-| ↓ | `RETROCEDER` | 3 | 2 |
-| ↙ | `RETROCEDER_IZQUIERDA` | 5 | 6 |
-| ← | `IZQUIERDA` | 4 | 4 |
-| ↖ | `AVANZAR_IZQUIERDA` | **16** | **5** |
-| Centro | `DETENER` | 1 | 0 |
-
-El código usa IDs del catálogo leído de AWS, no IDs de prueba fijos; los dos comandos nuevos se añadieron a RDS y constan activos. La ampliación se publicó desde `main` con el commit `e692f9e`. [Despliegue de la ampliación en GitHub Pages](https://github.com/yori7v7/control-iot-u4/actions/runs/42723870488)
-
-Las verificaciones de usuario y el Monitor Serie del ESP8266 demostraron recepción y despacho WSS de las ocho direcciones, incluidas las nuevas, y DETENER. **Actualización posterior (09/11/2026):** el propietario confirmó que completó las pruebas físicas de los movimientos del joystick, incluidas las dos diagonales nuevas, y que funcionaron correctamente tanto desde laptop como desde teléfono. Esta confirmación es testimonial y complementa la evidencia previa de WSS/Monitor Serie; no se adjuntó una nueva grabación del movimiento físico. Véase [validación de la ampliación](./assets/docs/validacion-funcional.md#ampliaci%C3%B3n-posterior-joystick-de-ocho-direcciones-09112026).
-
-## Publicación en GitHub Pages
-
-La fuente de Pages es **Deploy from a branch**, rama `main`, carpeta **/(root)**. El frontend usa recursos relativos y no requiere compilar JavaScript. GitHub Pages aplica `_config.yml` para excluir `assets/tests/`, `assets/docs/`, los archivos de desarrollo y las cachés. Las pruebas y la documentación se consultan en el repositorio. [Configuración de la fuente de Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site)
-
-La URL sin parámetros abre CONTROL real. MONITOREO usa `#monitoreo` en esa misma página. La simulación se activa mediante `?modo=simulacion` y genera respuestas de prueba solo para CONTROL. Los recursos se publican bajo `/control-iot-u4/assets/`. **La vista MONITOREO de la práctica 4.2 ya se encuentra integrada en `main` y publicada mediante GitHub Pages**; la compilación y el despliegue de Pages para el commit `84c9d1d` terminaron correctamente. El monitoreo de datos vivos requiere que la API y la base de datos de AWS estén disponibles; su ausencia se indica en la interfaz y no demuestra un fallo de publicación.
-
-Bootstrap 5.3.8 se distribuye como CSS bajo licencia MIT. [Versión oficial](https://getbootstrap.com/docs/5.3/getting-started/download/) · [Licencia incluida](./assets/css/vendor/bootstrap-LICENSE.txt)
-
-## Entrega digital — Práctica 4.2 (13/11/2026)
-
-- **Aplicación web de CONTROL y MONITOREO:** https://yori7v7.github.io/control-iot-u4/
-- **Código fuente del frontend:** https://github.com/yori7v7/control-iot-u4
-- **Monitoreo directo, en el mismo sitio:** https://yori7v7.github.io/control-iot-u4/#monitoreo
-
-La parte digital incluye consulta del estado y de los últimos movimientos persistidos, actualizaciones por WSS, historial paginado y presentación adaptable. Los eventos del backend no constituyen una confirmación independiente del movimiento físico. Las funciones experimentales de admisión de visitantes y autorización remota se desarrollan en una rama aparte y **no** se presentan como habilitadas en esta entrega digital. Las pruebas físicas de la ampliación se realizan en una fecha posterior.
+**Contexto académico.** Actividad 4.3 de Implementación de Soluciones I, Ingeniería en Sistemas Computacionales. Diego Yorel Castelán Silva, Tecnológico Nacional de México — Instituto Tecnológico de Pachuca, 2026. Docente Pinedo Fernández Víctor Manuel.
