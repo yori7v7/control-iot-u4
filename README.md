@@ -2,7 +2,7 @@
 
 Portal web de **Administración, Control y Monitoreo** para el proyecto IoT de la grúa RC HJ2025-1D. La versión publicada incorpora inventario, asignaciones, sesiones por rol, exhibición temporal, DEMOS privadas y de fábrica, reservas y auditoría.
 
-[Abrir el portal en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Guía 4.3](docs/4.3/README.md) · [Repositorio del backend](https://github.com/yori7v7/vehiculo_iot_api_dev) · [Swagger de producción](https://100-30-4-62.nip.io/docs)
+[Abrir el portal en GitHub Pages](https://yori7v7.github.io/control-iot-u4/) · [Guía 4.3](assets/docs/4.3/README.md) · [Repositorio del backend](https://github.com/yori7v7/vehiculo_iot_api_dev) · [Swagger de producción](https://100-30-4-62.nip.io/docs)
 
 ## Acceso y uso
 
@@ -36,7 +36,7 @@ El bearer 4.3 vive en memoria. El backend comprueba rol y alcance por unidad. HT
 ## Pruebas y versiones
 
 - El propietario confirmó el uso en PC y teléfono en vertical y horizontal, el control físico del comprador y la interrupción de la DEMO original con Claxon.
-- Las pruebas locales de JavaScript y Chrome usan simulación o peticiones interceptadas. La integración contra un backend MySQL aislado tiene una ejecución separada. Consulta los comandos y los límites de la evidencia en la [guía 4.3](docs/4.3/README.md).
+- Las pruebas locales de JavaScript y Chrome usan simulación o peticiones interceptadas. La integración contra un backend MySQL aislado tiene una ejecución separada. Consulta los comandos y los límites de la evidencia en la [guía 4.3](assets/docs/4.3/README.md).
 - Las prácticas 4.1 y 4.2 quedan como antecedente del joystick, las DEMOS y el monitoreo. El acceso directo con API key y las rutas sin sesión descritos allí pertenecen al laboratorio histórico. [Documentación histórica 4.1/4.2](assets/docs/) · [Portada de la última restauración 4.2](https://github.com/yori7v7/control-iot-u4/blob/ff9eda1518f92de361f6c3bc3f8f348a94b2de2b/README.md).
 
 La aplicación 4.3 publicada se identificó en `421b65a`. La revisión de documentación de esta entrega conserva los archivos de la aplicación.

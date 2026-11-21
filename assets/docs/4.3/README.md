@@ -1,6 +1,6 @@
 # Guía del frontend 4.3
 
-[Portada y recorrido por rol](../../README.md) · [Portal publicado](https://yori7v7.github.io/control-iot-u4/) · [Swagger](https://100-30-4-62.nip.io/docs)
+[Portada y recorrido por rol](../../../README.md) · [Portal publicado](https://yori7v7.github.io/control-iot-u4/) · [Swagger](https://100-30-4-62.nip.io/docs)
 
 ## Operación y evidencias
 
@@ -14,7 +14,7 @@
 
 En **Monitoreo**, el estado confirmado por HTTPS y el evento recibido por WSS se presentan por separado. El comprador puede consultar hasta diez movimientos individuales de su titularidad. El invitado recibe eventos de su sesión y las consultas REST devuelven estado nulo e historial vacío. El indicador WSS describe el navegador y la vista. El estado de despacho informa sobre el enlace de dispositivo. La unidad 4 carece de ESP8266. Una aceptación HTTP o un evento WSS de esa unidad acredita actividad lógica.
 
-El backend delimita el catálogo, las DEMOS y los datos de monitoreo por sesión y unidad. El cliente guarda la sesión en memoria y solicita un ticket nuevo por conexión o reconexión WSS. La expiración o la revocación invalida el acceso. La [configuración del frontend](../../assets/js/config.js) contiene el endpoint público y los tiempos de espera.
+El backend delimita el catálogo, las DEMOS y los datos de monitoreo por sesión y unidad. El cliente guarda la sesión en memoria y solicita un ticket nuevo por conexión o reconexión WSS. La expiración o la revocación invalida el acceso. La [configuración del frontend](../../js/config.js) contiene el endpoint público y los tiempos de espera.
 
 ## Pruebas locales
 
@@ -37,4 +37,4 @@ El cierre local aprobó 44 pruebas de Node, 95 de Chrome con simulación o tráf
 
 GitHub Pages sirve los recursos relativos de la aplicación desde `main`. El portal 4.3 se identificó en `421b65a`. Un cambio documental en GitHub puede disparar la compilación de Pages aunque el contenido de la aplicación se conserve. La API FastAPI y el firmware tienen ciclos de despliegue separados.
 
-Los informes de [`assets/docs/`](../../assets/docs/) conservan los contratos, pruebas y diseño de 4.1/4.2, incluido el acceso directo histórico con API key. Para el funcionamiento publicado de 4.3, usa esta guía y el Swagger 4.3.
+Los informes de [`assets/docs/`](../) conservan los contratos, pruebas y diseño de 4.1/4.2, incluido el acceso directo histórico con API key. Para el funcionamiento publicado de 4.3, usa esta guía y el Swagger 4.3.
