@@ -16,6 +16,10 @@ En **Monitoreo**, el estado confirmado por HTTPS y el evento recibido por WSS se
 
 El backend delimita el catálogo, las DEMOS y los datos de monitoreo por sesión y unidad. El cliente guarda la sesión en memoria y solicita un ticket nuevo por conexión o reconexión WSS. La expiración o la revocación invalida el acceso. La [configuración del frontend](../../js/config.js) contiene el endpoint público y los tiempos de espera.
 
+En **Administración → Modelos y capacidades**, las casillas de comprador se guardan con **Actualizar modelo**. Los permisos del comprador se aplican a las unidades vendidas del modelo y las casillas de invitado conservan su alcance. El portal lee el modelo guardado después de actualizar y muestra la respuesta de la API cuando el guardado es rechazado. Una consola abierta vuelve a consultar el catálogo cuando detecta un cambio. DETENER permanece disponible y las diagonales dependen de sus dos direcciones cardinales.
+
+Una DEMO programada requiere que sus pasos sigan autorizados. La DEMO original sólo está disponible con el catálogo de referencia completo y el despacho compatible. Si el servidor registra un arranque pendiente, solicita CLAXON antes de guardar una revocación.
+
 ## Pruebas locales
 
 Ejecuta estos comandos en la raíz con Node.js 22 o posterior y Google Chrome instalado.

@@ -61,7 +61,8 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
   });
   const demo = new DemoController({
     api, vehicleId, canControl,
-    canStart: () => canStop() && wsConnected && !commands.busy && !commands.mayBeMoving && !dispatch?.demo_original_pendiente,
+    canStart: () => canStop() && (!platform || catalogVerified) && wsConnected &&
+      !commands.busy && !commands.mayBeMoving && !dispatch?.demo_original_pendiente,
     onChange: render,
   });
   const joystick = new JoystickController({
@@ -142,8 +143,19 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
     if (!dispatchRequest) {
       dispatchRequest = api.getDispatch({ signal }).then(status => {
         const readyChanged = status.demo_original !== (dispatch?.demo_original === true);
+        const revision = status.revision_comandos;
+        const catalogMatches = () => catalogVerified && catalog.map(command => command.id).join(',') === revision;
         dispatch = status;
-        if (readyChanged) void Promise.resolve(refreshing).then(() => { if (!signal?.aborted) void loadCatalog(); });
+        const permissionsChanged = typeof revision === 'string' && !catalogMatches();
+        if (readyChanged || permissionsChanged) {
+          if (permissionsChanged) catalogVerified = false;
+          void Promise.resolve(refreshing).then(() => {
+            if (!signal?.aborted && (readyChanged || !catalogMatches())) {
+              if (permissionsChanged) catalogVerified = false;
+              void loadCatalog({ refreshDemo: permissionsChanged });
+            }
+          });
+        }
       })
         .catch(() => { dispatch = null; })
         .finally(() => { dispatchRequest = null; render(); });
@@ -151,7 +163,7 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
     return dispatchRequest;
   }
 
-  function loadCatalog() {
+  function loadCatalog({ refreshDemo = false } = {}) {
     if (refreshing) return refreshing;
     loading = true;
     render();
@@ -173,7 +185,8 @@ async function mount({ vehicleId = CONFIG.vehicleId, apiOptions = {}, socketOpti
       }
       if (demosResult.status === 'fulfilled') {
         demo.setCatalog(demosResult.value);
-        if (!demo.busy && demo.state.stepsStatus === 'error') void demo.select(demo.state.selectedId);
+        if (demo.state.selectedId !== null &&
+            (refreshDemo || (!demo.busy && demo.state.stepsStatus === 'error'))) void demo.select(demo.state.selectedId);
       } else if (catalogIsInvalid(demosResult.reason)) {
         demo.setCatalog([]);
       }

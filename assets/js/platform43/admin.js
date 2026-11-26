@@ -8,7 +8,8 @@ const codes = [
 ];
 const states = [['inventario', 'Inventario'], ['exhibicion', 'Exhibición'], ['vendida', 'Vendida'], ['baja', 'Baja']];
 const text = (name, value, maxLength = 80) => input(name, 'text', value, { required: true, maxLength });
-const checkbox = (name, checked) => input(name, 'checkbox', '', { class: 'form-check-input', checked: Boolean(checked) });
+const checkbox = (name, checked, disabled = false) =>
+  input(name, 'checkbox', '', { class: 'form-check-input', checked: Boolean(checked), disabled });
 
 export function showAdmin(root, api, report) {
   const body = el('div');
@@ -25,17 +26,22 @@ export function showAdmin(root, api, report) {
     body.replaceChildren(el('p', { role: 'status' }, 'Cargando…'));
     try {
       const result = await sections[sectionName](args);
-      if (expected === generation) body.replaceChildren(result);
+      if (expected !== generation) return false;
+      body.replaceChildren(result);
+      return true;
     } catch (error) {
       if (expected === generation) body.replaceChildren(el('p', { role: 'alert' }, error.message),
         button('Reintentar', () => void load(sectionName, args), true));
+      return false;
     }
   }
 
   const mutate = async (path, method, payload, message, args) => {
+    const expected = generation;
+    const sectionName = control.value;
+    report();
     await api(path, { method, body: payload });
-    await load(control.value, args);
-    report(message);
+    if (expected === generation && await load(sectionName, args)) report(message);
   };
 
   const sections = {
@@ -63,29 +69,37 @@ export function showAdmin(root, api, report) {
               .catch(error => report(error.message, true)), true),
         ].filter(Boolean)), rows.length === 100 ? button('Siguiente página', () => void load('usuarios', { after: rows.at(-1).id }), true) : null)));
     },
-    async modelos({ after = 0 } = {}) {
+    async modelos({ after = 0, selected } = {}) {
       const rows = await api(`/modelos?despues=${after}`);
       const target = el('div');
       function edit(row) {
         const current = new Map((row?.capacidades ?? []).map(cap => [cap.codigo, cap]));
+        const modelCodes = codes.map(([code, name]) => [code, current.get(code)?.nombre ?? name]);
         target.replaceChildren(form(row ? 'Actualizar modelo' : 'Crear modelo', [
           field('SKU', text('sku', row?.sku, 64)),
           field('Nombre', text('nombre', row?.nombre)),
           field('Descripción', input('descripcion', 'text', row?.descripcion, { maxLength: 255 })),
           field('Público', checkbox('publico', row?.publico)),
           field('Activo', checkbox('activo', row?.activo ?? true)),
-          el('fieldset', { class: 'iot-capabilities' }, el('legend', {}, 'Comandos por modelo'), codes.map(([code, name]) =>
-            el('div', {}, field(name, checkbox(`cap${code}`, current.has(code) || code === 0)),
+          row ? el('p', {}, 'Estas casillas se aplican a todas las unidades vendidas de este modelo. Coordina DETENER antes de revocar un movimiento en curso.') : null,
+          el('fieldset', { class: 'iot-capabilities' },
+            el('legend', {}, row ? 'Comandos del comprador por modelo' : 'Comandos del nuevo modelo'), modelCodes.map(([code, name]) =>
+            el('div', {}, field(name, checkbox(`cap${code}`, code === 0 || (current.has(code) && current.get(code).habilitada !== false), code === 0)),
               code <= 10 ? field(`Invitado · ${name}`, checkbox(`guest${code}`, current.get(code)?.invitado)) : null))),
+          row ? el('details', {}, el('summary', {}, 'Editar pertenencia al catálogo'),
+            el('p', {}, 'Quitar un comando del catálogo requiere un modelo sin unidades ni DEMOS.'),
+            modelCodes.filter(([code]) => code !== 0 && current.has(code)).map(([code, name]) =>
+              field(`Conservar en catálogo · ${name}`, checkbox(`keep${code}`, true)))) : null,
         ], values => mutate(row ? `/modelos/${row.id}` : '/modelos', row ? 'PUT' : 'POST', {
           sku: values.get('sku'), nombre: values.get('nombre'), descripcion: values.get('descripcion') || null,
           publico: values.has('publico'), activo: values.has('activo'),
-          capacidades: codes.filter(([code]) => values.has(`cap${code}`)).map(([codigo, nombre]) => ({
-            codigo, nombre, invitado: values.has(`guest${codigo}`),
+          capacidades: modelCodes.filter(([code]) => code === 0 || (current.has(code)
+            ? values.has(`keep${code}`) : values.has(`cap${code}`))).map(([codigo, nombre]) => ({
+            codigo, nombre, invitado: values.has(`guest${codigo}`), habilitada: codigo === 0 || values.has(`cap${codigo}`),
           })),
-        }, 'Modelo guardado.', { after }), report));
+        }, 'Modelo guardado.', { after, selected: row?.id }), report));
       }
-      edit();
+      edit(rows.find(row => row.id === selected));
       return section('Modelos comerciales', el('div', { class: 'iot-columns' },
         el('div', {}, button('Nuevo modelo', () => edit()), list(rows, row => [
           el('span', {}, `${row.sku} · ${row.nombre}${row.activo ? '' : ' · Baja'}`), button('Editar', () => edit(row), true),
