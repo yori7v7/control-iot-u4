@@ -46,8 +46,39 @@ async function fixtures(page, user, options = {}) {
           fecha_registro: null, activo: true };
         break;
       case '/plataforma/vehiculos/2/comandos':
-        json = [[0, 'DETENER'], [1, 'AVANZAR'], [64, 'DEMO_ORIGINAL'], [128, 'CLAXON']].map(([codigo, nombre], i) =>
-          ({ id_comando: 7 + i, id_vehiculo: 2, nombre, codigo, descripcion: null, activo: true }));
+        if (options.failCatalog) {
+          options.failCatalog -= 1;
+          status = 503;
+          json = { detail: 'Catálogo temporalmente no disponible.' };
+          break;
+        }
+        json = options.commands ??
+          [[0, 'DETENER'], [1, 'AVANZAR'], [64, 'DEMO_ORIGINAL'], [128, 'CLAXON']].map(([codigo, nombre], i) =>
+            ({ id_comando: 7 + i, id_vehiculo: 2, nombre, codigo, descripcion: null, activo: true }));
+        break;
+      case '/plataforma/vehiculos/2/movimientos': {
+        const { id_comando } = route.request().postDataJSON();
+        const command = options.commands?.find(row => row.id_comando === id_comando);
+        options.sent?.push(id_comando);
+        status = command ? 200 : 404;
+        json = command ? { resultado: 'ok', id_vehiculo: 2, id_comando, comando: command.nombre,
+          codigo: command.codigo, conectado: false, fecha_actualizacion: new Date().toISOString(), origen: 'API' }
+          : { detail: 'Recurso no disponible.' };
+        break;
+      }
+      case '/plataforma/modelos':
+        json = options.models ?? [];
+        break;
+      case '/plataforma/modelos/3':
+        expect(methods).toBe('PUT');
+        options.modelUpdates.push(route.request().postDataJSON());
+        if (options.modelError) {
+          status = 409;
+          json = { detail: options.modelError };
+        } else {
+          options.models[0] = { ...options.models[0], ...options.modelUpdates.at(-1) };
+          json = { id: 3 };
+        }
         break;
       case '/plataforma/vehiculos/2/despacho':
         json = options.dispatch ?? { estado: 'inhibido', demo_original: false, demo_original_pendiente: false };
@@ -172,6 +203,87 @@ test('administra en la misma aplicación y usa métricas de la API', async ({ pa
   await expect(wss).toHaveAttribute('data-tone', 'idle');
   expect(tickets).toHaveLength(0);
   expect(sockets).toHaveLength(0);
+});
+
+test('guarda habilitación sin quitar la capacidad y muestra el rechazo de Administración', async ({ page }) => {
+  const options = { modelUpdates: [], models: [{ id: 3, sku: 'HJ2025-1D', nombre: 'Montacargas', activo: true,
+    publico: true, capacidades: [
+      { codigo: 0, nombre: 'DETENER', habilitada: true, invitado: false },
+      { codigo: 2, nombre: 'RETROCEDER', habilitada: true, invitado: true },
+    ] }] };
+  await fixtures(page, ADMIN, options);
+  await signIn(page);
+  const section = page.getByRole('combobox', { name: 'Sección', exact: true });
+  await section.selectOption('modelos');
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(page.getByText('Estas casillas se aplican a todas las unidades vendidas de este modelo.', {
+    exact: false,
+  })).toBeVisible();
+  const reverse = page.getByLabel('RETROCEDER', { exact: true });
+  const save = page.getByRole('button', { name: 'Actualizar modelo', exact: true });
+  await expect(page.getByLabel('DETENER', { exact: true })).toBeDisabled();
+  await reverse.uncheck();
+  await save.click();
+  await expect(page.locator('#platform-status')).toHaveText('Modelo guardado.');
+  expect(options.modelUpdates[0].capacidades[1]).toEqual({
+    codigo: 2, nombre: 'RETROCEDER', habilitada: false, invitado: true,
+  });
+  await expect(reverse).not.toBeChecked();
+  await expect(page.getByLabel('Invitado · RETROCEDER', { exact: true })).toBeChecked();
+
+  options.modelError = 'Las capacidades del modelo ya tienen referencias.';
+  await page.getByText('Editar pertenencia al catálogo', { exact: true }).click();
+  await page.getByLabel('Conservar en catálogo · RETROCEDER', { exact: true }).uncheck();
+  await save.click();
+  await expect(page.locator('#platform-status')).toHaveText(options.modelError);
+  await expect(page.locator('#platform-status')).toHaveAttribute('data-error', 'true');
+  expect(options.models[0].capacidades[1].habilitada).toBe(false);
+  await section.selectOption('dashboard');
+  await section.selectOption('modelos');
+  await page.getByRole('button', { name: 'Editar', exact: true }).click();
+  await expect(reverse).not.toBeChecked();
+});
+
+test('el comprador abierto aplica la revocación y rehabilitación a botones, joystick y teclado', async ({ page }) => {
+  const commands = [[0, 'DETENER'], [1, 'AVANZAR'], [2, 'RETROCEDER'], [4, 'IZQUIERDA'], [6, 'RETROCEDER_IZQUIERDA'],
+    [8, 'DERECHA'], [10, 'RETROCEDER_DERECHA']].map(([codigo, nombre]) =>
+    ({ id_comando: 100 + codigo, id_vehiculo: 2, nombre, codigo, descripcion: null, activo: true }));
+  const revision = rows => rows.map(row => row.id_comando).join(',');
+  const options = { commands, sent: [], dispatch: { estado: 'inhibido', demo_original: false,
+    demo_original_pendiente: false, revision_comandos: revision(commands) } };
+  await fixtures(page, BUYER, options);
+  await signIn(page);
+  const reverse = page.locator('[data-command="RETROCEDER"]');
+  await expect(reverse).toBeEnabled();
+  await expect(page.locator('#control-mode')).toHaveText('LÓGICO · INHIBIDO');
+  options.commands = commands.filter(row => ![2, 6, 10].includes(row.codigo));
+  options.dispatch.revision_comandos = revision(options.commands);
+  await expect(reverse).toBeDisabled();
+  await expect(page.locator('[data-command^="RETROCEDER_"]')).toHaveCount(2);
+  for (const button of await page.locator('[data-command^="RETROCEDER_"]').all()) await expect(button).toBeDisabled();
+  const stick = page.locator('#joystick');
+  await stick.focus();
+  await page.keyboard.down('ArrowDown');
+  await page.keyboard.down('ArrowRight');
+  await page.keyboard.up('ArrowRight');
+  await page.keyboard.up('ArrowDown');
+  const bounds = await stick.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.77, bounds.y + bounds.height * 0.83);
+  await page.mouse.up();
+  await page.getByRole('button', { name: 'Detener', exact: true }).click();
+  await expect.poll(() => options.sent.includes(100)).toBe(true);
+  expect(options.sent.every(id => id === 100)).toBe(true);
+  await page.locator('[data-command="AVANZAR"]').click();
+  await expect.poll(() => options.sent.includes(101)).toBe(true);
+  options.commands = commands;
+  options.failCatalog = 1;
+  options.dispatch.revision_comandos = revision(commands);
+  await expect(reverse).toBeEnabled({ timeout: 9000 });
+  expect(options.failCatalog).toBe(0);
+  await reverse.click();
+  await expect.poll(() => options.sent.includes(102)).toBe(true);
 });
 
 test('el indicador WSS distingue vistas sin socket, caída y reconexión', async ({ page }) => {
